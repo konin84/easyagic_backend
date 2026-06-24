@@ -14,7 +14,7 @@ class WeatherView(APIView):
         lon_raw = request.query_params.get("lon")
 
         if not lat_raw or not lon_raw:
-            if user.is_staff:
+            if user.is_privileged:
                 return Response({"message": "No location provided. Pass lat and lon query parameters to get weather data."})
             return Response(
                 {"error": "lat and lon query parameters are required."},

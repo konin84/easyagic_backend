@@ -11,10 +11,16 @@
       "type": "string"
     },
     {
-      "key": "token",
+      "key": "access_token",
       "value": "",
       "type": "string",
-      "description": "Populated automatically after Login or Register"
+      "description": "JWT access token — populated automatically after Login or Register"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT refresh token — populated automatically after Login or Register"
     }
   ],
   "item": [
@@ -29,7 +35,9 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 201) {",
-                  "    pm.collectionVariables.set('token', pm.response.json().token);",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', body.access);",
+                  "    pm.collectionVariables.set('refresh_token', body.refresh);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -47,18 +55,20 @@
               "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"phone\": \"+1234567890\",\n  \"farm_name\": \"Green Valley Farm\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "description": "No password field — a secure password is auto-generated and emailed to the farmer."
+            "description": "Creates a farmer account. No password — a secure password is auto-generated and emailed to the farmer. Returns JWT access and refresh tokens."
           }
         },
         {
-          "name": "Login",
+          "name": "Login (Farmer)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    pm.collectionVariables.set('token', pm.response.json().token);",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', body.access);",
+                  "    pm.collectionVariables.set('refresh_token', body.refresh);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -75,7 +85,87 @@
               "mode": "raw",
               "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"password\": \"password123\"\n}",
               "options": { "raw": { "language": "json" } }
+            },
+            "description": "Authenticates a farmer. Returns JWT access token (30 min) and refresh token (7 days)."
+          }
+        },
+        {
+          "name": "Login (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', body.access);",
+                  "    pm.collectionVariables.set('refresh_token', body.refresh);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
             }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/auth/login/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Authenticates the superadmin. Set admin_email and admin_password as collection variables. Admins can call weather and advisor endpoints without GPS coordinates."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', body.access);",
+                  "    pm.collectionVariables.set('refresh_token', body.refresh);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/auth/token/refresh/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Exchange a refresh token for a new access token. The old refresh token is blacklisted and a new one is returned (token rotation). Call this when the access token expires."
+          }
+        },
+        {
+          "name": "Register App Manager (Admin only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/auth/register/app-manager/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"manager@easyagric.com\",\n  \"phone\": \"+1234567890\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Creates an App Manager account. Requires superadmin authentication. A secure password is auto-generated and emailed. App managers can access all endpoints without GPS coordinates."
           }
         },
         {
@@ -83,9 +173,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Token {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
             ],
-            "url": "{{base_url}}/api/auth/me/"
+            "url": "{{base_url}}/api/auth/me/",
+            "description": "Returns the authenticated user's profile: id, email, role, phone, farm_name, date_joined."
           }
         },
         {
@@ -93,7 +184,7 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Authorization", "value": "Token {{token}}" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
             "url": "{{base_url}}/api/auth/me/",
@@ -101,10 +192,11 @@
               "mode": "raw",
               "raw": "{\n  \"phone\": \"+0987654321\",\n  \"farm_name\": \"Blue Horizon Farm\"\n}",
               "options": { "raw": { "language": "json" } }
-            }
+            },
+            "description": "Partially updates the authenticated user's profile. All fields are optional."
           }
-        }
-        ,{
+        },
+        {
           "name": "Request Password Reset (OTP)",
           "request": {
             "method": "POST",
@@ -117,7 +209,7 @@
               "raw": "{\n  \"email\": \"farmer@example.com\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "description": "Sends a 6-digit OTP to the farmer's email. Valid for 10 minutes. Always returns the same message whether the email exists or not."
+            "description": "Sends a 6-digit OTP to the email. Valid for 10 minutes. Always returns the same message (prevents user enumeration)."
           }
         },
         {
@@ -128,7 +220,9 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    pm.collectionVariables.set('token', pm.response.json().token);",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', body.access);",
+                  "    pm.collectionVariables.set('refresh_token', body.refresh);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -146,7 +240,7 @@
               "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"otp\": \"123456\",\n  \"new_password\": \"newpassword123\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "description": "Verifies the OTP and sets the new password. Returns a fresh auth token (old token is invalidated)."
+            "description": "Verifies the OTP and sets a new password. Returns fresh JWT tokens."
           }
         }
       ]
@@ -159,18 +253,18 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Token {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
             ],
             "url": {
               "raw": "{{base_url}}/api/weather/?lat=5.35&lon=-4.0",
               "host": ["{{base_url}}"],
               "path": ["api", "weather", ""],
               "query": [
-                { "key": "lat", "value": "5.35", "description": "GPS latitude of the farm" },
-                { "key": "lon", "value": "-4.0", "description": "GPS longitude of the farm" }
+                { "key": "lat", "value": "5.35", "description": "GPS latitude (captured by mobile app at the farm)" },
+                { "key": "lon", "value": "-4.0", "description": "GPS longitude (captured by mobile app at the farm)" }
               ]
             },
-            "description": "Returns current weather, soil temperature at 0/6/18/54 cm depth, soil moisture, and 7-day forecast from Open-Meteo."
+            "description": "Returns current weather, soil temperature at 0/6/18/54 cm depth, soil moisture, and 7-day forecast from Open-Meteo. Requires authentication. lat and lon are required for farmers; admins and app managers receive a prompt if omitted."
           }
         }
       ]
@@ -183,7 +277,7 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Token {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
             ],
             "url": "{{base_url}}/api/soil/analyze/",
             "body": {
@@ -193,7 +287,7 @@
                   "key": "image",
                   "type": "file",
                   "src": "",
-                  "description": "Photo of the soil taken by the farmer"
+                  "description": "Photo of the soil taken by the farmer at the farm"
                 }
               ]
             },
@@ -210,7 +304,7 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Token {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
             ],
             "url": {
               "raw": "{{base_url}}/api/crops/recommend/?soil_type=Loam&temp=25",
@@ -225,7 +319,7 @@
                 {
                   "key": "temp",
                   "value": "25",
-                  "description": "Current air temperature in °C (optional, improves ranking)"
+                  "description": "Current air temperature in °C (optional — improves ranking)"
                 }
               ]
             },
@@ -242,7 +336,7 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Token {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
             ],
             "url": "{{base_url}}/api/advisor/",
             "body": {
@@ -252,23 +346,23 @@
                   "key": "image",
                   "type": "file",
                   "src": "",
-                  "description": "Photo of the soil"
+                  "description": "Photo of the soil taken at the farm"
                 },
                 {
                   "key": "lat",
                   "value": "5.35",
                   "type": "text",
-                  "description": "GPS latitude"
+                  "description": "GPS latitude — captured automatically by the mobile app at the farm"
                 },
                 {
                   "key": "lon",
                   "value": "-4.0",
                   "type": "text",
-                  "description": "GPS longitude"
+                  "description": "GPS longitude — captured automatically by the mobile app at the farm"
                 }
               ]
             },
-            "description": "The main mobile endpoint. Sends a soil photo + GPS coordinates and receives soil analysis, weather data, and ranked crop recommendations in a single response. Soil analysis and weather are fetched in parallel."
+            "description": "Main mobile endpoint. Farmer takes a soil photo at their farm — the mobile app captures GPS automatically. Returns soil analysis, weather data, and crop recommendations in one response. Report is also emailed to the farmer. Admins and app managers can omit lat/lon — weather will be skipped but soil analysis still runs."
           }
         }
       ]

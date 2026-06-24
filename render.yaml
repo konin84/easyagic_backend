@@ -36,3 +36,11 @@ services:
         sync: false
       - key: DEFAULT_FROM_EMAIL
         sync: false
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
+      - key: DJANGO_SUPERUSER_FIRST_NAME
+        sync: false
+      - key: DJANGO_SUPERUSER_LAST_NAME
+        sync: false

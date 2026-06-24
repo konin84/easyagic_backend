@@ -38,9 +38,9 @@ class AdvisorView(APIView):
         lat_str = request.data.get("lat")
         lon_str = request.data.get("lon")
 
-        if not lat_str and not user.is_staff:
+        if not lat_str and not user.is_privileged:
             errors["lat"] = "GPS latitude is required."
-        if not lon_str and not user.is_staff:
+        if not lon_str and not user.is_privileged:
             errors["lon"] = "GPS longitude is required."
 
         if errors:

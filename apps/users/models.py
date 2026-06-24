@@ -9,9 +9,11 @@ from django.utils import timezone
 class User(AbstractUser):
     FARMER = "farmer"
     ADMIN = "admin"
+    APP_MANAGER = "appmanager"
     ROLE_CHOICES = [
         (FARMER, "Farmer"),
         (ADMIN, "Admin"),
+        (APP_MANAGER, "App Manager"),
     ]
 
     email = models.EmailField(unique=True)
@@ -27,6 +29,15 @@ class User(AbstractUser):
     @property
     def is_admin_user(self):
         return self.role == self.ADMIN
+
+    @property
+    def is_app_manager(self):
+        return self.role == self.APP_MANAGER
+
+    @property
+    def is_privileged(self):
+        """Staff (superadmin) and app managers bypass location requirements."""
+        return self.is_staff or self.role in (self.ADMIN, self.APP_MANAGER)
 
     def __str__(self):
         return f"{self.username} ({self.role})"

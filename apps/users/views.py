@@ -4,11 +4,11 @@ import string
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.authtoken.models import Token
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import User, OTP
-from .serializers import RegisterSerializer, LoginSerializer, UserProfileSerializer
+from .serializers import RegisterSerializer, LoginSerializer, UserProfileSerializer, RegisterAppManagerSerializer
 from .emails import send_welcome_email, send_otp_email
 
 _PASSWORD_CHARS = string.ascii_letters + string.digits + "!@#$%"
@@ -16,6 +16,15 @@ _PASSWORD_CHARS = string.ascii_letters + string.digits + "!@#$%"
 
 def _generate_password(length: int = 12) -> str:
     return "".join(secrets.choice(_PASSWORD_CHARS) for _ in range(length))
+
+
+def _jwt_response(user):
+    refresh = RefreshToken.for_user(user)
+    return {
+        "access": str(refresh.access_token),
+        "refresh": str(refresh),
+        "user": UserProfileSerializer(user).data,
+    }
 
 
 class RegisterView(APIView):
@@ -29,11 +38,25 @@ class RegisterView(APIView):
 
         send_welcome_email(user, password)
 
-        token, _ = Token.objects.get_or_create(user=user)
+        return Response(_jwt_response(user), status=status.HTTP_201_CREATED)
+
+
+class RegisterAppManagerView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request):
+        serializer = RegisterAppManagerSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        password = _generate_password()
+        user = serializer.save(password=password)
+
+        send_welcome_email(user, password)
+
         return Response(
             {
-                "message": "Account created. Check your email for your login password.",
-                "token": token.key,
+                "message": "App manager account created. Credentials sent by email.",
                 "user": UserProfileSerializer(user).data,
             },
             status=status.HTTP_201_CREATED,
@@ -47,13 +70,7 @@ class LoginView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         user = serializer.validated_data["user"]
-        token, _ = Token.objects.get_or_create(user=user)
-        return Response(
-            {
-                "token": token.key,
-                "user": UserProfileSerializer(user).data,
-            }
-        )
+        return Response(_jwt_response(user))
 
 
 class ProfileView(APIView):
@@ -76,7 +93,6 @@ class PasswordResetRequestView(APIView):
         if not email:
             return Response({"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Always return the same message so we don't reveal whether the email exists
         try:
             user = User.objects.get(email=email)
             otp = OTP.generate_for(user)
@@ -120,11 +136,7 @@ class PasswordResetVerifyView(APIView):
         user.set_password(new_password)
         user.save(update_fields=["password"])
 
-        # Rotate the auth token so old sessions are invalidated
-        Token.objects.filter(user=user).delete()
-        token = Token.objects.create(user=user)
-
         return Response({
             "message": "Password reset successful.",
-            "token": token.key,
+            **_jwt_response(user),
         })
