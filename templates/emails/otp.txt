@@ -1,0 +1,13 @@
+Hello {{ user.farm_name|default:user.email }},
+
+We received a request to reset your EasyAgric password.
+
+Your one-time code (valid for 10 minutes):
+
+    {{ otp_code }}
+
+Submit this code with your email and new password to complete the reset.
+
+If you did not request this, ignore this email — your account is safe.
+
+The EasyAgric Team

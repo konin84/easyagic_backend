@@ -1,0 +1,12 @@
+Hello {{ user.farm_name|default:user.email }},
+
+Welcome to EasyAgric! Your farmer account has been created.
+
+LOGIN DETAILS
+  Email    : {{ user.email }}
+  Password : {{ password }}
+
+Please change your password after your first login.
+
+Happy farming,
+The EasyAgric Team

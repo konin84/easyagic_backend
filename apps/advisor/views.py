@@ -4,10 +4,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 
 from apps.weather.services import get_agricultural_data
 from apps.soil.services import analyze_soil_image
 from apps.crops.services import get_crop_recommendations
+from .emails import send_advice_email
 
 
 class AdvisorView(APIView):
@@ -20,9 +22,11 @@ class AdvisorView(APIView):
       lon      — GPS longitude (required)
 
     Returns soil analysis, weather/soil-temp data, and ranked crop recommendations.
+    The full report is also emailed to the authenticated farmer in the background.
     """
 
     parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         errors = {}
@@ -101,5 +105,8 @@ class AdvisorView(APIView):
             response["warnings"] = {"soil_analysis": f"Soil analysis failed: {soil_error}"}
         if weather_error:
             response.setdefault("warnings", {})["weather"] = f"Weather fetch failed: {weather_error}"
+
+        # Email the report to the farmer without blocking the API response
+        send_advice_email(request.user, response)
 
         return Response(response)

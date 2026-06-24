@@ -6,7 +6,7 @@ dependencies:
   - python >=3.8
 scripts:
   server:
-    - python manage.py runserver 202
+    - python manage.py runserver 2027
   migrate:
     - python manage.py migrate
   makemigrations:

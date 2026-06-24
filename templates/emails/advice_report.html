@@ -1,0 +1,127 @@
+{% extends "emails/base.html" %}
+{% block title %}Your EasyAgric Farm Advice Report{% endblock %}
+
+{% block content %}
+<h2 style="color:#2e7d32;margin-top:0;">Your Farm Advice Report</h2>
+<p style="color:#555;font-size:14px;">Hello {{ user.farm_name|default:user.email }}, here is your latest analysis.</p>
+
+<!-- ── SOIL ANALYSIS ── -->
+<h3 style="color:#2e7d32;border-bottom:2px solid #c8e6c9;padding-bottom:6px;margin-top:28px;">&#127758; Soil Analysis</h3>
+<table width="100%" cellpadding="6" cellspacing="0" style="font-size:14px;">
+  <tr style="background:#f1f8e9;">
+    <td style="color:#555;width:42%;">Soil Type</td>
+    <td style="font-weight:bold;color:#222;">{{ soil.soil_type|default:"N/A" }}</td>
+  </tr>
+  <tr>
+    <td style="color:#555;">Color</td>
+    <td style="color:#222;">{{ soil.color|default:"N/A" }}</td>
+  </tr>
+  <tr style="background:#f1f8e9;">
+    <td style="color:#555;">Texture</td>
+    <td style="color:#222;">{{ soil.texture|default:"N/A" }}</td>
+  </tr>
+  <tr>
+    <td style="color:#555;">Moisture Appearance</td>
+    <td style="color:#222;">{{ soil.moisture_appearance|default:"N/A" }}</td>
+  </tr>
+  <tr style="background:#f1f8e9;">
+    <td style="color:#555;">Organic Matter</td>
+    <td style="color:#222;">{{ soil.organic_matter|default:"N/A" }}</td>
+  </tr>
+  <tr>
+    <td style="color:#555;">pH Estimate</td>
+    <td style="color:#222;">{{ soil.ph_estimate|default:"N/A" }}</td>
+  </tr>
+  <tr style="background:#f1f8e9;">
+    <td style="color:#555;">Fertility</td>
+    <td style="color:#222;">{{ soil.fertility_estimate|default:"N/A" }}</td>
+  </tr>
+  <tr>
+    <td style="color:#555;">Confidence</td>
+    <td style="color:#222;">{{ soil.confidence|default:"N/A" }}</td>
+  </tr>
+</table>
+
+{% if soil.visible_issues %}
+<p style="margin:12px 0 4px;font-size:13px;color:#d32f2f;font-weight:bold;">Issues detected:</p>
+<ul style="margin:0;padding-left:18px;color:#555;font-size:13px;">
+  {% for issue in soil.visible_issues %}<li>{{ issue }}</li>{% endfor %}
+</ul>
+{% endif %}
+
+{% if soil.soil_amendments %}
+<p style="margin:12px 0 4px;font-size:13px;color:#1565c0;font-weight:bold;">Recommended amendments:</p>
+<ul style="margin:0;padding-left:18px;color:#555;font-size:13px;">
+  {% for a in soil.soil_amendments %}<li>{{ a }}</li>{% endfor %}
+</ul>
+{% endif %}
+
+<!-- ── WEATHER ── -->
+<h3 style="color:#2e7d32;border-bottom:2px solid #c8e6c9;padding-bottom:6px;margin-top:28px;">&#127782; Current Weather</h3>
+<table width="100%" cellpadding="6" cellspacing="0" style="font-size:14px;">
+  <tr style="background:#f1f8e9;">
+    <td style="color:#555;width:42%;">Air Temperature</td>
+    <td style="font-weight:bold;color:#222;">{{ current_weather.temperature_2m|default:"N/A" }} °C</td>
+  </tr>
+  <tr>
+    <td style="color:#555;">Humidity</td>
+    <td style="color:#222;">{{ current_weather.relative_humidity_2m|default:"N/A" }} %</td>
+  </tr>
+  <tr style="background:#f1f8e9;">
+    <td style="color:#555;">Wind Speed</td>
+    <td style="color:#222;">{{ current_weather.windspeed_10m|default:"N/A" }} km/h</td>
+  </tr>
+</table>
+
+<p style="margin:16px 0 6px;font-size:13px;color:#555;font-weight:bold;">Soil Temperature</p>
+<table width="100%" cellpadding="6" cellspacing="0" style="font-size:14px;">
+  <tr style="background:#f1f8e9;">
+    <td style="color:#555;width:42%;">Surface (0 cm)</td>
+    <td style="color:#222;">{{ current_soil.soil_temperature_0cm|default:"N/A" }} °C</td>
+  </tr>
+  <tr>
+    <td style="color:#555;">At 6 cm</td>
+    <td style="color:#222;">{{ current_soil.soil_temperature_6cm|default:"N/A" }} °C</td>
+  </tr>
+  <tr style="background:#f1f8e9;">
+    <td style="color:#555;">At 18 cm</td>
+    <td style="color:#222;">{{ current_soil.soil_temperature_18cm|default:"N/A" }} °C</td>
+  </tr>
+</table>
+
+<!-- ── CROP RECOMMENDATIONS ── -->
+<h3 style="color:#2e7d32;border-bottom:2px solid #c8e6c9;padding-bottom:6px;margin-top:28px;">&#127807; Recommended Crops</h3>
+{% if crop_recommendations %}
+<table width="100%" cellpadding="8" cellspacing="0" style="font-size:13px;border-collapse:collapse;">
+  <tr style="background:#2e7d32;color:#fff;">
+    <th style="text-align:left;padding:8px;">Crop</th>
+    <th style="text-align:center;">Suitability</th>
+    <th style="text-align:center;">Water Needs</th>
+    <th style="text-align:center;">Temp Range</th>
+  </tr>
+  {% for crop in crop_recommendations %}
+  <tr style="background:{% cycle '#f9fbe7' '#ffffff' %};">
+    <td style="color:#222;font-weight:bold;">{{ crop.name }}</td>
+    <td style="text-align:center;">
+      {% if crop.suitability == "High" %}
+        <span style="background:#c8e6c9;color:#1b5e20;padding:2px 8px;border-radius:10px;font-size:12px;">High</span>
+      {% elif crop.suitability == "Medium" %}
+        <span style="background:#fff9c4;color:#f57f17;padding:2px 8px;border-radius:10px;font-size:12px;">Medium</span>
+      {% else %}
+        <span style="background:#ffcdd2;color:#b71c1c;padding:2px 8px;border-radius:10px;font-size:12px;">Low</span>
+      {% endif %}
+    </td>
+    <td style="text-align:center;color:#555;">{{ crop.water_needs }}</td>
+    <td style="text-align:center;color:#555;">{{ crop.optimal_temp_range }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p style="color:#777;">No crop recommendations available for current conditions.</p>
+{% endif %}
+
+<p style="color:#333;line-height:1.6;margin-top:28px;">
+  Stay productive,<br/>
+  <strong>The EasyAgric Team</strong>
+</p>
+{% endblock %}

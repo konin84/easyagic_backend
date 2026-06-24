@@ -44,7 +44,7 @@
             "url": "{{base_url}}/api/auth/register/",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"password\": \"password123\",\n  \"phone\": \"+1234567890\",\n  \"farm_name\": \"Green Valley Farm\",\n  \"farm_latitude\": 5.35,\n  \"farm_longitude\": -4.0\n}",
+              "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"phone\": \"+1234567890\",\n  \"farm_name\": \"Green Valley Farm\",\n  \"farm_latitude\": 5.35,\n  \"farm_longitude\": -4.0\n}",\n  \"description\": \"No password field — a secure password is auto-generated and emailed to the farmer.\"",
               "options": { "raw": { "language": "json" } }
             }
           }
@@ -101,6 +101,51 @@
               "raw": "{\n  \"phone\": \"+0987654321\",\n  \"farm_name\": \"Blue Horizon Farm\",\n  \"farm_latitude\": 6.12,\n  \"farm_longitude\": -3.5\n}",
               "options": { "raw": { "language": "json" } }
             }
+          }
+        }
+        ,{
+          "name": "Request Password Reset (OTP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/auth/password-reset/request/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"farmer@example.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Sends a 6-digit OTP to the farmer's email. Valid for 10 minutes. Always returns the same message whether the email exists or not."
+          }
+        },
+        {
+          "name": "Verify OTP & Set New Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('token', pm.response.json().token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/auth/password-reset/verify/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"otp\": \"123456\",\n  \"new_password\": \"newpassword123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Verifies the OTP and sets the new password. Returns a fresh auth token (old token is invalidated)."
           }
         }
       ]

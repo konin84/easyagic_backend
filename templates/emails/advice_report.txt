@@ -1,0 +1,34 @@
+Hello {{ user.farm_name|default:user.email }},
+
+Here is your latest farm advice report from EasyAgric.
+
+━━━ SOIL ANALYSIS ━━━
+Type             : {{ soil.soil_type|default:"N/A" }}
+Color            : {{ soil.color|default:"N/A" }}
+Texture          : {{ soil.texture|default:"N/A" }}
+Moisture         : {{ soil.moisture_appearance|default:"N/A" }}
+Organic matter   : {{ soil.organic_matter|default:"N/A" }}
+pH estimate      : {{ soil.ph_estimate|default:"N/A" }}
+Fertility        : {{ soil.fertility_estimate|default:"N/A" }}
+Confidence       : {{ soil.confidence|default:"N/A" }}
+{% if soil.visible_issues %}
+Issues detected  : {% for i in soil.visible_issues %}{{ i }}{% if not forloop.last %}, {% endif %}{% endfor %}
+{% endif %}{% if soil.soil_amendments %}
+Amendments       : {% for a in soil.soil_amendments %}{{ a }}{% if not forloop.last %}, {% endif %}{% endfor %}
+{% endif %}
+━━━ CURRENT WEATHER ━━━
+Air temperature  : {{ current_weather.temperature_2m|default:"N/A" }} °C
+Humidity         : {{ current_weather.relative_humidity_2m|default:"N/A" }} %
+Wind speed       : {{ current_weather.windspeed_10m|default:"N/A" }} km/h
+
+Soil temperature:
+  Surface (0 cm) : {{ current_soil.soil_temperature_0cm|default:"N/A" }} °C
+  At 6 cm        : {{ current_soil.soil_temperature_6cm|default:"N/A" }} °C
+  At 18 cm       : {{ current_soil.soil_temperature_18cm|default:"N/A" }} °C
+
+━━━ RECOMMENDED CROPS ━━━
+{% for crop in crop_recommendations %}  • {{ crop.name }} — {{ crop.suitability }} suitability | Water: {{ crop.water_needs }} | Temp: {{ crop.optimal_temp_range }}
+{% empty %}  No crops matched the current conditions.
+{% endfor %}
+Stay productive,
+The EasyAgric Team
