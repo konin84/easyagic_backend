@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include
+from config.exceptions import handler500  # noqa: F401 — picked up by Django automatically
 
 urlpatterns = [
     path("admin/", admin.site.urls),
