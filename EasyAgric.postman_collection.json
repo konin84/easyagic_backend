@@ -59,7 +59,7 @@
           }
         },
         {
-          "name": "Login (Farmer)",
+          "name": "Login",
           "event": [
             {
               "listen": "test",
@@ -86,38 +86,7 @@
               "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"password\": \"password123\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "description": "Authenticates a farmer. Returns JWT access token (30 min) and refresh token (7 days)."
-          }
-        },
-        {
-          "name": "Login (Admin)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    const body = pm.response.json();",
-                  "    pm.collectionVariables.set('access_token', body.access);",
-                  "    pm.collectionVariables.set('refresh_token', body.refresh);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "url": "{{base_url}}/api/auth/login/",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "description": "Authenticates the superadmin. Set admin_email and admin_password as collection variables. Admins can call weather and advisor endpoints without GPS coordinates."
+            "description": "Authenticates any user (farmer, app manager, or admin). Returns JWT access token (30 min) and refresh token (7 days)."
           }
         },
         {
@@ -194,6 +163,38 @@
               "options": { "raw": { "language": "json" } }
             },
             "description": "Partially updates the authenticated user's profile. All fields are optional."
+          }
+        },
+        {
+          "name": "Change Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', body.access);",
+                  "    pm.collectionVariables.set('refresh_token', body.refresh);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/auth/password/change/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"oldpassword123\",\n  \"new_password\": \"newpassword456\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Changes the password for the authenticated user. Requires the current password for verification. Returns fresh JWT tokens so the user stays logged in after the change."
           }
         },
         {

@@ -1,4 +1,6 @@
 import logging
+import threading
+
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.conf import settings
@@ -11,7 +13,7 @@ def send_welcome_email(user, password: str) -> None:
     subject = "Welcome to EasyAgric — Your Login Details"
     text_body = render_to_string("emails/welcome.txt", context)
     html_body = render_to_string("emails/welcome.html", context)
-    _send(subject, text_body, html_body, user.email)
+    _send_async(subject, text_body, html_body, user.email)
 
 
 def send_otp_email(user, otp_code: str) -> None:
@@ -19,10 +21,15 @@ def send_otp_email(user, otp_code: str) -> None:
     subject = "EasyAgric — Your Password Reset Code"
     text_body = render_to_string("emails/otp.txt", context)
     html_body = render_to_string("emails/otp.html", context)
-    _send(subject, text_body, html_body, user.email)
+    _send_async(subject, text_body, html_body, user.email)
 
 
-def _send(subject: str, text_body: str, html_body: str, recipient: str) -> None:
+def _send_async(subject: str, text_body: str, html_body: str, recipient: str) -> None:
+    thread = threading.Thread(target=_deliver, args=(subject, text_body, html_body, recipient), daemon=True)
+    thread.start()
+
+
+def _deliver(subject: str, text_body: str, html_body: str, recipient: str) -> None:
     msg = EmailMultiAlternatives(
         subject=subject,
         body=text_body,

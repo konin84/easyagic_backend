@@ -6,6 +6,7 @@ from .views import (
     RegisterAppManagerView,
     LoginView,
     ProfileView,
+    PasswordChangeView,
     PasswordResetRequestView,
     PasswordResetVerifyView,
 )
@@ -16,6 +17,7 @@ urlpatterns = [
     path("login/", LoginView.as_view(), name="auth-login"),
     path("token/refresh/", TokenRefreshView.as_view(), name="auth-token-refresh"),
     path("me/", ProfileView.as_view(), name="auth-profile"),
+    path("password/change/", PasswordChangeView.as_view(), name="auth-password-change"),
     path("password-reset/request/", PasswordResetRequestView.as_view(), name="auth-password-reset-request"),
     path("password-reset/verify/", PasswordResetVerifyView.as_view(), name="auth-password-reset-verify"),
 ]

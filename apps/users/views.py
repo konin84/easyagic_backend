@@ -87,6 +87,39 @@ class ProfileView(APIView):
         return Response(serializer.data)
 
 
+class PasswordChangeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        current_password = request.data.get("current_password", "")
+        new_password = request.data.get("new_password", "")
+
+        if not current_password or not new_password:
+            return Response(
+                {"error": "current_password and new_password are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not request.user.check_password(current_password):
+            return Response(
+                {"error": "Current password is incorrect."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(new_password) < 8:
+            return Response(
+                {"error": "new_password must be at least 8 characters."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        request.user.set_password(new_password)
+        request.user.save(update_fields=["password"])
+
+        return Response(
+            {"message": "Password updated successfully.", **_jwt_response(request.user)}
+        )
+
+
 class PasswordResetRequestView(APIView):
     def post(self, request):
         email = request.data.get("email", "").strip()
