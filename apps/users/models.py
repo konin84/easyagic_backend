@@ -19,8 +19,6 @@ class User(AbstractUser):
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=FARMER)
     phone = models.CharField(max_length=20, blank=True)
     farm_name = models.CharField(max_length=200, blank=True)
-    farm_latitude = models.FloatField(null=True, blank=True)
-    farm_longitude = models.FloatField(null=True, blank=True)
 
     @property
     def is_farmer(self):

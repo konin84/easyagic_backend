@@ -34,25 +34,28 @@ class AdvisorView(APIView):
         if "image" not in request.FILES:
             errors["image"] = "A soil photo is required."
 
+        user = request.user
         lat_str = request.data.get("lat")
         lon_str = request.data.get("lon")
 
-        if not lat_str:
+        if not lat_str and not user.is_staff:
             errors["lat"] = "GPS latitude is required."
-        if not lon_str:
+        if not lon_str and not user.is_staff:
             errors["lon"] = "GPS longitude is required."
 
         if errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            latitude = float(lat_str)
-            longitude = float(lon_str)
-        except ValueError:
-            return Response(
-                {"error": "lat and lon must be valid numbers."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        latitude = longitude = None
+        if lat_str and lon_str:
+            try:
+                latitude = float(lat_str)
+                longitude = float(lon_str)
+            except ValueError:
+                return Response(
+                    {"error": "lat and lon must be valid numbers."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         image_file = request.FILES["image"]
         if not image_file.content_type.startswith("image/"):
@@ -63,10 +66,14 @@ class AdvisorView(APIView):
 
         image_bytes = image_file.read()
 
-        # Run soil analysis and weather fetch in parallel
+        # Run soil analysis and weather fetch in parallel (weather skipped if no coordinates)
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             soil_future = executor.submit(analyze_soil_image, image_bytes)
-            weather_future = executor.submit(get_agricultural_data, latitude, longitude)
+            weather_future = (
+                executor.submit(get_agricultural_data, latitude, longitude)
+                if latitude is not None and longitude is not None
+                else None
+            )
 
             soil_error = weather_error = None
             try:
@@ -75,11 +82,12 @@ class AdvisorView(APIView):
                 soil_error = str(e)
                 soil_analysis = None
 
-            try:
-                weather_data = weather_future.result(timeout=15)
-            except Exception as e:
-                weather_error = str(e)
-                weather_data = None
+            weather_data = None
+            if weather_future is not None:
+                try:
+                    weather_data = weather_future.result(timeout=15)
+                except Exception as e:
+                    weather_error = str(e)
 
         if soil_error and weather_error:
             return Response(

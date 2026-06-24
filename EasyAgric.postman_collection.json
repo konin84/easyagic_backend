@@ -44,7 +44,7 @@
             "url": "{{base_url}}/api/auth/register/",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"phone\": \"+1234567890\",\n  \"farm_name\": \"Green Valley Farm\",\n  \"farm_latitude\": 5.35,\n  \"farm_longitude\": -4.0\n}",
+              "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"phone\": \"+1234567890\",\n  \"farm_name\": \"Green Valley Farm\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "description": "No password field — a secure password is auto-generated and emailed to the farmer."
@@ -99,7 +99,7 @@
             "url": "{{base_url}}/api/auth/me/",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone\": \"+0987654321\",\n  \"farm_name\": \"Blue Horizon Farm\",\n  \"farm_latitude\": 6.12,\n  \"farm_longitude\": -3.5\n}",
+              "raw": "{\n  \"phone\": \"+0987654321\",\n  \"farm_name\": \"Blue Horizon Farm\"\n}",
               "options": { "raw": { "language": "json" } }
             }
           }

@@ -1,23 +1,29 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from .services import get_agricultural_data
 
 
 class WeatherView(APIView):
-    def get(self, request):
-        latitude = request.query_params.get("lat")
-        longitude = request.query_params.get("lon")
+    permission_classes = [IsAuthenticated]
 
-        if not latitude or not longitude:
+    def get(self, request):
+        user = request.user
+        lat_raw = request.query_params.get("lat")
+        lon_raw = request.query_params.get("lon")
+
+        if not lat_raw or not lon_raw:
+            if user.is_staff:
+                return Response({"message": "No location provided. Pass lat and lon query parameters to get weather data."})
             return Response(
                 {"error": "lat and lon query parameters are required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            latitude = float(latitude)
-            longitude = float(longitude)
+            latitude = float(lat_raw)
+            longitude = float(lon_raw)
         except ValueError:
             return Response(
                 {"error": "lat and lon must be valid numbers."},
