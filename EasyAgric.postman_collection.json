@@ -1,0 +1,231 @@
+{
+  "info": {
+    "name": "EasyAgric API",
+    "description": "Agricultural advisory app — soil analysis, weather, crop recommendations.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string",
+      "description": "Populated automatically after Login or Register"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register Farmer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('token', pm.response.json().token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/auth/register/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"password\": \"password123\",\n  \"phone\": \"+1234567890\",\n  \"farm_name\": \"Green Valley Farm\",\n  \"farm_latitude\": 5.35,\n  \"farm_longitude\": -4.0\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('token', pm.response.json().token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/auth/login/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"password\": \"password123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": "{{base_url}}/api/auth/me/"
+          }
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/auth/me/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+0987654321\",\n  \"farm_name\": \"Blue Horizon Farm\",\n  \"farm_latitude\": 6.12,\n  \"farm_longitude\": -3.5\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Weather",
+      "item": [
+        {
+          "name": "Get Agricultural Weather",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/weather/?lat=5.35&lon=-4.0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "weather", ""],
+              "query": [
+                { "key": "lat", "value": "5.35", "description": "GPS latitude of the farm" },
+                { "key": "lon", "value": "-4.0", "description": "GPS longitude of the farm" }
+              ]
+            },
+            "description": "Returns current weather, soil temperature at 0/6/18/54 cm depth, soil moisture, and 7-day forecast from Open-Meteo."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Soil",
+      "item": [
+        {
+          "name": "Analyze Soil Photo",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": "{{base_url}}/api/soil/analyze/",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "",
+                  "description": "Photo of the soil taken by the farmer"
+                }
+              ]
+            },
+            "description": "Upload a soil photo. Gemini Vision analyses it and returns soil type, color, texture, pH estimate, fertility, visible issues, and amendment recommendations."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Crops",
+      "item": [
+        {
+          "name": "Get Crop Recommendations",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/crops/recommend/?soil_type=Loam&temp=25",
+              "host": ["{{base_url}}"],
+              "path": ["api", "crops", "recommend", ""],
+              "query": [
+                {
+                  "key": "soil_type",
+                  "value": "Loam",
+                  "description": "Clay | Sandy | Loam | Silt | Laterite | Black Cotton | Alluvial"
+                },
+                {
+                  "key": "temp",
+                  "value": "25",
+                  "description": "Current air temperature in °C (optional, improves ranking)"
+                }
+              ]
+            },
+            "description": "Returns crops ranked by suitability for the given soil type and current temperature. Factors in the current month for seasonal filtering."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Advisor",
+      "item": [
+        {
+          "name": "Get Full Farm Advice",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": "{{base_url}}/api/advisor/",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "",
+                  "description": "Photo of the soil"
+                },
+                {
+                  "key": "lat",
+                  "value": "5.35",
+                  "type": "text",
+                  "description": "GPS latitude"
+                },
+                {
+                  "key": "lon",
+                  "value": "-4.0",
+                  "type": "text",
+                  "description": "GPS longitude"
+                }
+              ]
+            },
+            "description": "The main mobile endpoint. Sends a soil photo + GPS coordinates and receives soil analysis, weather data, and ranked crop recommendations in a single response. Soil analysis and weather are fetched in parallel."
+          }
+        }
+      ]
+    }
+  ]
+}
