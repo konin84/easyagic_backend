@@ -1,8 +1,8 @@
 databases:
   - name: easy_agric_db
     plan: free
-    databaseName: easy_agric
-    user: easy_agric
+    databaseName: easy_agric_db
+    user: easy_agric_db_user
 
 services:
   - type: web
