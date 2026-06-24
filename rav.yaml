@@ -1,0 +1,38 @@
+name: rav
+version: 0.1.0
+author: Aka Konin
+license: MIT
+dependencies:
+  - python >=3.8
+scripts:
+  server:
+    - python manage.py runserver 202
+  migrate:
+    - python manage.py migrate
+  makemigrations:
+    - python manage.py makemigrations
+  shell_plus:
+    - python manage.py shell
+  createsuperuser:
+    - python manage.py createsuperuser
+  collectstatic:
+    - python manage.py collectstatic --noinput
+
+  # curl_auth: 
+  #   - curl -  POST -H "Content-Type: application/json" -d '{"username": "konin", "password": "admin1234"}' http://127.0.0.1:8080/api/token/pair
+  # curl_auth: "curl -X POST -H \"Content-Type: application/json\" -d '{\"username\": \"konin\", \"password\": \"admin1234\"}' http://127.0.0.1:8080/api/token/pair"
+
+  test:
+    - cd src && python manage.py test
+  shell:
+    - cd src && python manage.py shell
+  lint:
+    - flake8 src
+  format:
+    - black src
+  install:
+    - pip install -r requirements.txt
+  install-dev:
+    - pip install -r requirements-dev.txt
+  pre-commit:
+    - pre-commit install
