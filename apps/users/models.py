@@ -20,7 +20,40 @@ class User(AbstractUser):
 
     EN = "en"
     FR = "fr"
-    LANGUAGE_CHOICES = [(EN, "English"), (FR, "French")]
+    SW = "sw"
+    HA = "ha"
+    YO = "yo"
+    IG = "ig"
+    AM = "am"
+    ZU = "zu"
+    XH = "xh"
+    TW = "tw"
+    WO = "wo"
+    LN = "ln"
+    SN = "sn"
+    DYU = "dyu"
+    BCI = "bci"
+    BM = "bm"
+    FF = "ff"
+    LANGUAGE_CHOICES = [
+        (EN, "English"),
+        (FR, "French"),
+        (SW, "Swahili"),
+        (HA, "Hausa"),
+        (YO, "Yoruba"),
+        (IG, "Igbo"),
+        (AM, "Amharic"),
+        (ZU, "Zulu"),
+        (XH, "Xhosa"),
+        (TW, "Twi"),
+        (WO, "Wolof"),
+        (LN, "Lingala"),
+        (SN, "Shona"),
+        (DYU, "Dioula"),
+        (BCI, "Baoulé"),
+        (BM, "Bambara"),
+        (FF, "Fulani"),
+    ]
 
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=FARMER)
     phone = models.CharField(max_length=20, blank=True)

@@ -28,6 +28,15 @@
       "name": "Auth",
       "item": [
         {
+          "name": "List Languages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/languages/",
+            "description": "Returns all supported language codes and names. No authentication required. The Flutter app should call this on first launch to populate the language picker."
+          }
+        },
+        {
           "name": "Register Farmer",
           "event": [
             {
@@ -52,10 +61,10 @@
             "url": "{{base_url}}/api/auth/register/",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"phone\": \"+1234567890\",\n  \"farm_name\": \"Green Valley Farm\"\n}",
+              "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"phone\": \"+1234567890\",\n  \"farm_name\": \"Green Valley Farm\",\n  \"language\": \"en\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "description": "Creates a farmer account. No password — a secure password is auto-generated and emailed to the farmer. Returns JWT access and refresh tokens."
+            "description": "Creates a farmer account. No password — a secure password is auto-generated and emailed to the farmer. Returns JWT access and refresh tokens. Supported language codes: en, fr, sw, ha, yo, ig, am, zu, xh, tw, wo, ln, sn, dyu, bci, bm, ff. Defaults to 'en' if omitted."
           }
         },
         {
@@ -131,7 +140,7 @@
             "url": "{{base_url}}/api/auth/register/app-manager/",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"manager@easyagric.com\",\n  \"phone\": \"+1234567890\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\"\n}",
+              "raw": "{\n  \"email\": \"manager@easyagric.com\",\n  \"phone\": \"+1234567890\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"language\": \"en\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "description": "Creates an App Manager account. Requires superadmin authentication. A secure password is auto-generated and emailed. App managers can access all endpoints without GPS coordinates."
@@ -159,7 +168,7 @@
             "url": "{{base_url}}/api/auth/me/",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone\": \"+0987654321\",\n  \"farm_name\": \"Blue Horizon Farm\"\n}",
+              "raw": "{\n  \"phone\": \"+0987654321\",\n  \"farm_name\": \"Blue Horizon Farm\",\n  \"language\": \"fr\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "description": "Partially updates the authenticated user's profile. All fields are optional."

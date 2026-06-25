@@ -27,6 +27,14 @@ def _jwt_response(user):
     }
 
 
+class LanguageListView(APIView):
+    def get(self, request):
+        return Response([
+            {"code": code, "name": name}
+            for code, name in User.LANGUAGE_CHOICES
+        ])
+
+
 class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)

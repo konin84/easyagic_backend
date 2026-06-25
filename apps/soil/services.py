@@ -25,7 +25,25 @@ Return ONLY a valid JSON object — no markdown, no explanation, no code fences 
 }}
 """
 
-_LANGUAGE_NAMES = {"en": "English", "fr": "French"}
+_LANGUAGE_NAMES = {
+    "en": "English",
+    "fr": "French",
+    "sw": "Swahili",
+    "ha": "Hausa",
+    "yo": "Yoruba",
+    "ig": "Igbo",
+    "am": "Amharic",
+    "zu": "Zulu",
+    "xh": "Xhosa",
+    "tw": "Twi",
+    "wo": "Wolof",
+    "ln": "Lingala",
+    "sn": "Shona",
+    "dyu": "Dioula",
+    "bci": "Baoulé",
+    "bm": "Bambara",
+    "ff": "Fulani",
+}
 
 
 def analyze_soil_image(image_bytes: bytes, language: str = "en") -> dict:

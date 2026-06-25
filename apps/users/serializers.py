@@ -6,7 +6,7 @@ from .models import User
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["email", "phone", "farm_name"]
+        fields = ["email", "phone", "farm_name", "language"]
 
     def create(self, validated_data):
         email = validated_data["email"]
@@ -18,13 +18,14 @@ class RegisterSerializer(serializers.ModelSerializer):
             role=User.FARMER,
             phone=validated_data.get("phone", ""),
             farm_name=validated_data.get("farm_name", ""),
+            language=validated_data.get("language", User.EN),
         )
 
 
 class RegisterAppManagerSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["email", "phone", "first_name", "last_name"]
+        fields = ["email", "phone", "first_name", "last_name", "language"]
 
     def create(self, validated_data):
         email = validated_data["email"]
@@ -37,6 +38,7 @@ class RegisterAppManagerSerializer(serializers.ModelSerializer):
             phone=validated_data.get("phone", ""),
             first_name=validated_data.get("first_name", ""),
             last_name=validated_data.get("last_name", ""),
+            language=validated_data.get("language", User.EN),
         )
 
 
