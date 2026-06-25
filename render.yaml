@@ -44,3 +44,5 @@ services:
         sync: false
       - key: DJANGO_SUPERUSER_LAST_NAME
         sync: false
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false

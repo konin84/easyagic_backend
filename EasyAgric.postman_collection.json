@@ -83,7 +83,7 @@
             "url": "{{base_url}}/api/auth/login/",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"password\": \"password123\"\n}",
+              "raw": "{\n  \"email\": \"admin@easyagric.com\",\n  \"password\": \"admin1234\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "description": "Authenticates any user (farmer, app manager, or admin). Returns JWT access token (30 min) and refresh token (7 days)."
@@ -363,7 +363,111 @@
                 }
               ]
             },
-            "description": "Main mobile endpoint. Farmer takes a soil photo at their farm — the mobile app captures GPS automatically. Returns soil analysis, weather data, and crop recommendations in one response. Report is also emailed to the farmer. Admins and app managers can omit lat/lon — weather will be skipped but soil analysis still runs."
+            "description": "Main mobile endpoint. Farmer takes a soil photo at their farm — the mobile app captures GPS automatically. Returns soil analysis, weather data, and crop recommendations in one response. Report is also emailed to the farmer and a push notification is sent. Admins and app managers can omit lat/lon — weather will be skipped but soil analysis still runs."
+          }
+        }
+      ]
+    },
+    {
+      "name": "History",
+      "item": [
+        {
+          "name": "My Analysis History",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": "{{base_url}}/api/history/",
+            "description": "Returns all analysis records for the authenticated farmer, ordered by most recent first."
+          }
+        },
+        {
+          "name": "Analysis Record Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": "{{base_url}}/api/history/1/",
+            "description": "Returns full detail of a single analysis record. Replace 1 with the actual record id."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": "{{base_url}}/api/dashboard/stats/",
+            "description": "Returns aggregate stats: total farmers, new farmers (7/30 days), total analyses, analyses (7/30 days). Requires admin or app manager role."
+          }
+        },
+        {
+          "name": "Farmer List",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": "{{base_url}}/api/dashboard/farmers/",
+            "description": "Returns all farmers with their analysis count, ordered by most recently joined. Requires admin or app manager role."
+          }
+        },
+        {
+          "name": "Farmer Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": "{{base_url}}/api/dashboard/farmers/1/",
+            "description": "Returns a farmer's profile and their 10 most recent analyses. Replace 1 with the actual farmer id. Requires admin or app manager role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Register Device Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/notifications/register/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"FCM_DEVICE_TOKEN_HERE\",\n  \"platform\": \"android\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Registers the device's FCM token for push notifications. Call this on app launch after the user logs in. platform must be 'android' or 'ios'."
+          }
+        },
+        {
+          "name": "Unregister Device Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/notifications/unregister/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"FCM_DEVICE_TOKEN_HERE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Removes the device token. Call this on logout so the user no longer receives push notifications on this device."
           }
         }
       ]

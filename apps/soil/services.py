@@ -4,12 +4,14 @@ from google import genai
 from google.genai import types
 from django.conf import settings
 
-_PROMPT = """
+_PROMPT_TEMPLATE = """
 You are an expert agricultural soil scientist. Analyze this soil photograph carefully.
+
+Respond in {language}.
 
 Return ONLY a valid JSON object — no markdown, no explanation, no code fences — with exactly these fields:
 
-{
+{{
   "soil_type": "<one of: Clay, Sandy, Loam, Silt, Laterite, Black Cotton, Alluvial, Unknown>",
   "color": "<color description, e.g. Dark Brown, Reddish Brown, Light Yellow, Grey>",
   "texture": "<Fine, Medium, or Coarse>",
@@ -20,18 +22,23 @@ Return ONLY a valid JSON object — no markdown, no explanation, no code fences 
   "visible_issues": ["<e.g. compaction, erosion, waterlogging, nutrient deficiency — empty list if none>"],
   "soil_amendments": ["<recommended amendment, e.g. add compost, lime, sand — empty list if none needed>"],
   "confidence": "<Low, Medium, or High — how confident you are given image quality>"
-}
+}}
 """
 
+_LANGUAGE_NAMES = {"en": "English", "fr": "French"}
 
-def analyze_soil_image(image_bytes: bytes) -> dict:
+
+def analyze_soil_image(image_bytes: bytes, language: str = "en") -> dict:
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
+    language_name = _LANGUAGE_NAMES.get(language, "English")
+    prompt = _PROMPT_TEMPLATE.format(language=language_name)
 
     image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
 
     response = client.models.generate_content(
         model="gemini-2.0-flash",
-        contents=[image_part, _PROMPT],
+        contents=[image_part, prompt],
     )
 
     text = response.text.strip()

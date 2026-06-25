@@ -35,6 +35,9 @@ INSTALLED_APPS = [
     "apps.soil",
     "apps.crops",
     "apps.advisor",
+    "apps.history",
+    "apps.dashboard",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
@@ -172,6 +175,9 @@ AUTHENTICATION_BACKENDS = [
 
 # Google Gemini
 GEMINI_API_KEY = config("GEMINI_API_KEY")
+
+# Firebase — service account JSON stored as a single env var on Render
+FIREBASE_CREDENTIALS_JSON = config("FIREBASE_CREDENTIALS_JSON", default="")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

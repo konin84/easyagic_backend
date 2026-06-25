@@ -18,9 +18,14 @@ class User(AbstractUser):
 
     email = models.EmailField(unique=True)
 
+    EN = "en"
+    FR = "fr"
+    LANGUAGE_CHOICES = [(EN, "English"), (FR, "French")]
+
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=FARMER)
     phone = models.CharField(max_length=20, blank=True)
     farm_name = models.CharField(max_length=200, blank=True)
+    language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES, default=EN)
 
     @property
     def is_farmer(self):

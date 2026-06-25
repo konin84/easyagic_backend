@@ -2,11 +2,13 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 from .services import analyze_soil_image
 
 
 class SoilAnalysisView(APIView):
     parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         if "image" not in request.FILES:
@@ -24,7 +26,7 @@ class SoilAnalysisView(APIView):
             )
 
         try:
-            result = analyze_soil_image(image_file.read())
+            result = analyze_soil_image(image_file.read(), language=request.user.language)
         except Exception as e:
             return Response(
                 {"error": f"Soil analysis failed: {str(e)}"},

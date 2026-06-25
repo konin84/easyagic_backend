@@ -1,4 +1,5 @@
 import concurrent.futures
+import threading
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -9,6 +10,9 @@ from rest_framework.permissions import IsAuthenticated
 from apps.weather.services import get_agricultural_data
 from apps.soil.services import analyze_soil_image
 from apps.crops.services import get_crop_recommendations
+from apps.history.models import AnalysisRecord
+from apps.notifications.models import DeviceToken
+from apps.notifications.services import send_push
 from .emails import send_advice_email
 
 
@@ -68,7 +72,7 @@ class AdvisorView(APIView):
 
         # Run soil analysis and weather fetch in parallel (weather skipped if no coordinates)
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            soil_future = executor.submit(analyze_soil_image, image_bytes)
+            soil_future = executor.submit(analyze_soil_image, image_bytes, user.language)
             weather_future = (
                 executor.submit(get_agricultural_data, latitude, longitude)
                 if latitude is not None and longitude is not None
@@ -114,7 +118,29 @@ class AdvisorView(APIView):
         if weather_error:
             response.setdefault("warnings", {})["weather"] = f"Weather fetch failed: {weather_error}"
 
-        # Email the report to the farmer without blocking the API response
-        send_advice_email(request.user, response)
+        # Save record, send email and push notification without blocking the response
+        def _save_and_notify():
+            AnalysisRecord.objects.create(
+                farmer=request.user,
+                latitude=latitude,
+                longitude=longitude,
+                soil_analysis=soil_analysis,
+                weather_data=weather_data,
+                crop_recommendations=crop_recommendations,
+            )
+            send_advice_email(request.user, response)
+
+            tokens = list(
+                DeviceToken.objects.filter(user=request.user).values_list("token", flat=True)
+            )
+            soil_type = (soil_analysis or {}).get("soil_type", "your soil")
+            send_push(
+                tokens,
+                title="Farm Analysis Ready",
+                body=f"Your {soil_type} analysis is complete. Check your recommendations.",
+                data={"type": "analysis_complete"},
+            )
+
+        threading.Thread(target=_save_and_notify, daemon=True).start()
 
         return Response(response)
