@@ -1,8 +1,11 @@
 import logging
 import threading
+
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.conf import settings
+
+from apps.utils.email_translate import translate_email_content
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,10 @@ def _deliver(user, advice: dict) -> None:
     subject = "EasyAgric — Your Farm Advice Report"
     text_body = render_to_string("emails/advice_report.txt", context)
     html_body = render_to_string("emails/advice_report.html", context)
+
+    language = getattr(user, "language", "en")
+    text_body = translate_email_content(text_body, language)
+    html_body = translate_email_content(html_body, language)
 
     msg = EmailMultiAlternatives(
         subject=subject,
