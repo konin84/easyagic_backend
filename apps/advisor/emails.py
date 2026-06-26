@@ -29,8 +29,8 @@ def _deliver(user, advice: dict) -> None:
     html_body = render_to_string("emails/advice_report.html", context)
 
     language = getattr(user, "language", "en")
-    text_body = translate_email_content(text_body, language)
-    html_body = translate_email_content(html_body, language)
+    text_body = translate_email_content(text_body, language, is_html=False)
+    html_body = translate_email_content(html_body, language, is_html=True)
 
     msg = EmailMultiAlternatives(
         subject=subject,

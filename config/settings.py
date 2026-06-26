@@ -176,6 +176,9 @@ AUTHENTICATION_BACKENDS = [
 # Google Gemini
 GEMINI_API_KEY = config("GEMINI_API_KEY")
 
+# Google Cloud Translation API (for multilingual emails)
+GOOGLE_TRANSLATE_API_KEY = config("GOOGLE_TRANSLATE_API_KEY", default="")
+
 # Firebase — service account JSON stored as a single env var on Render
 FIREBASE_CREDENTIALS_JSON = config("FIREBASE_CREDENTIALS_JSON", default="")
 

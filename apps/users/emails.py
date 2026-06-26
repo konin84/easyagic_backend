@@ -34,8 +34,8 @@ def _send_async(subject: str, text_body: str, html_body: str, recipient: str, la
 
 
 def _deliver(subject: str, text_body: str, html_body: str, recipient: str, language: str) -> None:
-    translated_text = translate_email_content(text_body, language)
-    translated_html = translate_email_content(html_body, language)
+    translated_text = translate_email_content(text_body, language, is_html=False)
+    translated_html = translate_email_content(html_body, language, is_html=True)
 
     msg = EmailMultiAlternatives(
         subject=subject,
