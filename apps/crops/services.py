@@ -1,5 +1,6 @@
 from datetime import datetime
 from .data import CROP_DATABASE
+from apps.utils.email_translate import translate_batch
 
 _SUITABILITY_ORDER = {"High": 0, "Medium": 1, "Low": 2}
 
@@ -41,3 +42,31 @@ def get_crop_recommendations(soil_type: str, current_temp: float = None) -> list
 
     recommendations.sort(key=lambda c: _SUITABILITY_ORDER[c["suitability"]])
     return recommendations
+
+
+def translate_crop_recommendations(recommendations: list, language: str) -> list:
+    """
+    Returns a translated copy of crop recommendations for display; does not
+    mutate the input, so the English original stays intact for storage/email.
+    """
+    if language == "en" or not recommendations:
+        return recommendations
+
+    translatable = sorted({
+        text
+        for rec in recommendations
+        for text in (rec["name"], rec["suitability"], rec["water_needs"], rec["temperature_note"])
+        if text
+    })
+    translated = dict(zip(translatable, translate_batch(translatable, language)))
+
+    return [
+        {
+            **rec,
+            "name": translated.get(rec["name"], rec["name"]),
+            "suitability": translated.get(rec["suitability"], rec["suitability"]),
+            "water_needs": translated.get(rec["water_needs"], rec["water_needs"]),
+            "temperature_note": translated.get(rec["temperature_note"], rec["temperature_note"]),
+        }
+        for rec in recommendations
+    ]

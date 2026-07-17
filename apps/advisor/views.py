@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.weather.services import get_agricultural_data
 from apps.soil.services import analyze_soil_image
-from apps.crops.services import get_crop_recommendations
+from apps.crops.services import get_crop_recommendations, translate_crop_recommendations
 from apps.history.models import AnalysisRecord
 from apps.notifications.models import DeviceToken
 from apps.notifications.services import send_push
@@ -143,4 +143,8 @@ class AdvisorView(APIView):
 
         threading.Thread(target=_save_and_notify, daemon=True).start()
 
-        return Response(response)
+        api_response = {
+            **response,
+            "crop_recommendations": translate_crop_recommendations(crop_recommendations, request.user.language),
+        }
+        return Response(api_response)
