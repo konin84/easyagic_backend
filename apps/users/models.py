@@ -30,9 +30,7 @@ class User(AbstractUser):
     TW = "tw"
     WO = "wo"
     LN = "ln"
-    SN = "sn"
-    DYU = "dyu"
-    BCI = "bci"
+    SN = "sn" 
     BM = "bm"
     FF = "ff"
     ES = "es"
@@ -50,9 +48,7 @@ class User(AbstractUser):
         (TW, "Twi"),
         (WO, "Wolof"),
         (LN, "Lingala"),
-        (SN, "Shona"),
-        (DYU, "Dioula"),
-        (BCI, "Baoulé"),
+        (SN, "Shona"), 
         (BM, "Bambara"),
         (FF, "Fulani"),
         (ES, "Spanish"),

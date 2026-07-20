@@ -3,7 +3,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
-from .services import analyze_soil_image
+from apps.utils.email_translate import translate_email_content
+from .services import analyze_soil_image, NotSoilImageError
 
 
 class SoilAnalysisView(APIView):
@@ -27,6 +28,9 @@ class SoilAnalysisView(APIView):
 
         try:
             result = analyze_soil_image(image_file.read(), language=request.user.language)
+        except NotSoilImageError as e:
+            message = translate_email_content(str(e), request.user.language, is_html=False)
+            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response(
                 {"error": f"Soil analysis failed: {str(e)}"},

@@ -12,6 +12,7 @@ Respond in {language}.
 Return ONLY a valid JSON object — no markdown, no explanation, no code fences — with exactly these fields:
 
 {{
+  "is_soil_photo": <true if this image is a clear, close-up photo of exposed soil/ground/dirt that can be analyzed; false if it mainly shows plants, crops, leaves, buildings, sky, people, or anything else that isn't exposed soil>,
   "soil_type": "<one of: Clay, Sandy, Loam, Silt, Laterite, Black Cotton, Alluvial, Unknown>",
   "color": "<color description, e.g. Dark Brown, Reddish Brown, Light Yellow, Grey>",
   "texture": "<Fine, Medium, or Coarse>",
@@ -46,6 +47,10 @@ _LANGUAGE_NAMES = {
 }
 
 
+class NotSoilImageError(Exception):
+    """Raised when the uploaded image doesn't show soil that can be analyzed."""
+
+
 def analyze_soil_image(image_bytes: bytes, language: str = "en") -> dict:
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
@@ -66,4 +71,12 @@ def analyze_soil_image(image_bytes: bytes, language: str = "en") -> dict:
         lines = text.splitlines()
         text = "\n".join(lines[1:-1])
 
-    return json.loads(text)
+    result = json.loads(text)
+
+    if not result.pop("is_soil_photo", True):
+        raise NotSoilImageError(
+            "This doesn't look like a photo of soil. Please take a close-up "
+            "photo of the exposed ground/dirt, not plants, crops, or the wider field."
+        )
+
+    return result

@@ -8,11 +8,12 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 
 from apps.weather.services import get_agricultural_data
-from apps.soil.services import analyze_soil_image
+from apps.soil.services import analyze_soil_image, NotSoilImageError
 from apps.crops.services import get_crop_recommendations, translate_crop_recommendations
 from apps.history.models import AnalysisRecord
 from apps.notifications.models import DeviceToken
 from apps.notifications.services import send_push
+from apps.utils.email_translate import translate_email_content
 from .emails import send_advice_email
 
 
@@ -82,6 +83,9 @@ class AdvisorView(APIView):
             soil_error = weather_error = None
             try:
                 soil_analysis = soil_future.result(timeout=30)
+            except NotSoilImageError as e:
+                message = translate_email_content(str(e), user.language, is_html=False)
+                return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
                 soil_error = str(e)
                 soil_analysis = None
