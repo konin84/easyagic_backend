@@ -35,6 +35,8 @@ class User(AbstractUser):
     BCI = "bci"
     BM = "bm"
     FF = "ff"
+    ES = "es"
+    PT = "pt"
     LANGUAGE_CHOICES = [
         (EN, "English"),
         (FR, "French"),
@@ -53,6 +55,8 @@ class User(AbstractUser):
         (BCI, "Baoulé"),
         (BM, "Bambara"),
         (FF, "Fulani"),
+        (ES, "Spanish"),
+        (PT, "Portuguese"),
     ]
 
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=FARMER)

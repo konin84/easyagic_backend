@@ -17,7 +17,7 @@ _GT_CODE_MAP = {
     "yo": "yo", "ig": "ig", "am": "am", "zu": "zu",
     "xh": "xh", "tw": "ak", "ln": "ln",
     "sn": "sn", "bm": "bm",
-    "ff": "ff",
+    "ff": "ff", "es": "es", "pt": "pt",
 }
 
 
