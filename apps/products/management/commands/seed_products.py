@@ -4,6 +4,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.text import slugify
 
+from apps.products.images import GENERATED_PREFIX, build_placeholder
 from apps.products.models import Product
 
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "products.json"
@@ -18,6 +19,11 @@ class Command(BaseCommand):
     déjà en base : le catalogue s'amorce au démarrage, puis se gère depuis
     l'admin Django (descriptions, images) sans être écrasé au redéploiement.
     Utiliser --overwrite pour forcer les valeurs du JSON.
+
+    Une image de remplacement est générée pour toute fiche qui n'en a aucune —
+    y compris les fiches déjà en base, afin qu'un catalogue existant sans images
+    soit complété sans écraser le reste. Toute vraie photo téléversée est
+    conservée. Utiliser --no-images pour ne rien générer.
     """
 
     help = "Amorce le catalogue de produits agricoles (apps/products/data/products.json)."
@@ -29,6 +35,14 @@ class Command(BaseCommand):
         parser.add_argument(
             "--overwrite", action="store_true",
             help="Met à jour les fiches existantes au lieu de les laisser intactes.",
+        )
+        parser.add_argument(
+            "--no-images", action="store_true",
+            help="N'génère aucune image de remplacement.",
+        )
+        parser.add_argument(
+            "--regenerate-images", action="store_true",
+            help="Régénère les images de remplacement (les vraies photos sont conservées).",
         )
 
     def handle(self, *args, **options):
@@ -48,7 +62,7 @@ class Command(BaseCommand):
         valid_kinds = {k for k, _ in Product.KIND_CHOICES}
         valid_categories = {c for c, _ in Product.CATEGORY_CHOICES}
 
-        created = updated = skipped = 0
+        created = updated = skipped = imaged = 0
         for index, row in enumerate(rows):
             name = (row.get("name") or "").strip()
             if not name:
@@ -71,9 +85,15 @@ class Command(BaseCommand):
 
             existing = Product.objects.filter(slug=slugify(name)[:140]).first()
             if existing is None:
-                Product.objects.create(name=name, is_active=True, **values)
+                product = Product.objects.create(name=name, is_active=True, **values)
+                if self._attach_image(product, options):
+                    imaged += 1
                 created += 1
                 continue
+
+            # Backfill artwork onto rows that predate it, without touching their text
+            if self._attach_image(existing, options):
+                imaged += 1
 
             if not options["overwrite"]:
                 skipped += 1
@@ -86,7 +106,36 @@ class Command(BaseCommand):
             updated += 1
 
         self.stdout.write(self.style.SUCCESS(
-            f"Catalogue amorcé — {created} créé(s), {updated} mis à jour, {skipped} inchangé(s)."
+            f"Catalogue amorcé — {created} créé(s), {updated} mis à jour, {skipped} inchangé(s), "
+            f"{imaged} image(s) générée(s)."
         ))
         if skipped and not options["overwrite"]:
             self.stdout.write("Utiliser --overwrite pour forcer les valeurs du JSON.")
+
+    def _attach_image(self, product, options):
+        """
+        Give the product a generated card if it has none. Returns True when one
+        was written.
+
+        A real photo uploaded through Django admin is NEVER replaced, not even by
+        --regenerate-images: generated art is written under `products/generated/`,
+        so anything outside that prefix is treated as a genuine upload.
+        """
+        if options.get("no_images"):
+            return False
+
+        if product.image:
+            is_generated = product.image.name.startswith(GENERATED_PREFIX)
+            if not (is_generated and options.get("regenerate_images")):
+                return False
+
+        try:
+            content = build_placeholder(
+                product.name, product.category, product.get_category_display()
+            )
+        except Exception as exc:
+            self.stdout.write(f"  ! image non générée pour {product.name} : {exc}")
+            return False
+
+        product.image.save(f"generated/{product.slug}.jpg", content, save=True)
+        return True

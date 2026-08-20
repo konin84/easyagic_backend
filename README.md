@@ -87,7 +87,12 @@ Chaque fiche porte un nom, une catégorie, une **description pratique** de deux 
 - `GET /api/products/categories/` — catégories groupées par famille, avec le nombre de produits (pour les filtres)
 - `GET /api/products/<slug>/` — fiche produit
 
-**Images** : livrées vides. Renseigner `image_url` dans `apps/products/data/products.json`, ou téléverser un fichier depuis l'admin Django (stocké sur Cloudinary en production). Le champ `image` de l'API renvoie le fichier s'il existe, sinon l'URL, sinon `null`.
+**Images** : chaque produit reçoit automatiquement une **image générée** (carte colorée par catégorie portant le nom du produit), afin qu'aucune fiche ne s'affiche cassée dans l'application. Ce sont des visuels d'attente, à remplacer par de vraies photos.
+
+- Téléverser une vraie photo depuis l'admin Django la remplace définitivement : les images générées sont écrites dans `products/generated/`, et **une photo téléversée n'est jamais écrasée**, pas même par `--regenerate-images`
+- Alternative : renseigner `image_url` dans `apps/products/data/products.json`
+- Le champ `image` de l'API renvoie le fichier s'il existe, sinon l'URL, sinon `null`
+- `--no-images` pour amorcer sans générer de visuels
 
 **Amorçage** : `python manage.py seed_products` — idempotent, exécuté à chaque déploiement, et **n'écrase jamais** une fiche modifiée depuis l'admin (`--overwrite` pour forcer).
 

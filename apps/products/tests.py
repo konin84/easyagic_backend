@@ -1,11 +1,13 @@
 import json
 import tempfile
+from unittest.mock import patch
 from io import StringIO
 from pathlib import Path
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.test import TestCase
+from django.core.files.base import ContentFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
 
@@ -20,12 +22,12 @@ class SeedProductsTests(TestCase):
     def seed(self, payload=None, **options):
         out = StringIO()
         if payload is None:
-            call_command("seed_products", stdout=out, **options)
+            call_command("seed_products", stdout=out, no_images=True, **options)
         else:
             with tempfile.TemporaryDirectory() as tmp:
                 path = Path(tmp) / "p.json"
                 path.write_text(json.dumps({"products": payload}))
-                call_command("seed_products", file=str(path), stdout=out, **options)
+                call_command("seed_products", file=str(path), stdout=out, no_images=True, **options)
         return out.getvalue()
 
     def test_bundled_catalogue_seeds(self):
@@ -97,7 +99,7 @@ class SeedProductsTests(TestCase):
 class ProductAPITests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        call_command("seed_products", stdout=StringIO())
+        call_command("seed_products", stdout=StringIO(), no_images=True)
 
     def setUp(self):
         self.client = APIClient()
@@ -158,17 +160,25 @@ class ProductAPITests(TestCase):
             self.client.get(reverse("product-detail", args=["no-such-thing"])).status_code, 404
         )
 
-    def test_image_is_null_until_one_is_supplied(self):
-        response = self.client.get(reverse("product-list"))
-        self.assertIsNone(response.data["results"][0]["image"])
-
-    def test_image_url_is_served_when_set(self):
+    def test_image_url_is_used_when_there_is_no_uploaded_file(self):
         product = Product.objects.first()
+        product.image.delete(save=False)
+        product.image = None
         product.image_url = "https://cdn.example.com/maize.jpg"
-        product.save(update_fields=["image_url"])
+        product.save(update_fields=["image", "image_url"])
 
         response = self.client.get(reverse("product-detail", args=[product.slug]))
         self.assertEqual(response.data["image"], "https://cdn.example.com/maize.jpg")
+
+    def test_image_is_null_only_when_neither_source_is_set(self):
+        product = Product.objects.first()
+        product.image.delete(save=False)
+        product.image = None
+        product.image_url = ""
+        product.save(update_fields=["image", "image_url"])
+
+        response = self.client.get(reverse("product-detail", args=[product.slug]))
+        self.assertIsNone(response.data["image"])
 
     def test_categories_endpoint_reports_counts_per_kind(self):
         response = self.client.get(reverse("product-categories"))
@@ -184,3 +194,104 @@ class ProductAPITests(TestCase):
         self.assertEqual(
             self.client.get(reverse("product-list"), {"limit": "lots"}).status_code, 400
         )
+
+
+class ProductImageTests(TestCase):
+    """Generated artwork, so no product renders as a broken tile."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.media = override_settings(MEDIA_ROOT=self.tmp.name)
+        self.media.enable()
+        self.addCleanup(self.media.disable)
+        # post_migrate already seeded this test DB; start clean so each test
+        # controls exactly which products and images exist
+        Product.objects.all().delete()
+
+    def seed(self, **options):
+        call_command("seed_products", stdout=StringIO(), **options)
+
+    def test_every_seeded_product_gets_an_image(self):
+        self.seed()
+
+        self.assertTrue(Product.objects.exists())
+        missing = [p.name for p in Product.objects.all() if not p.display_image]
+        self.assertEqual(missing, [], "these products would render as broken tiles")
+
+    def test_images_are_backfilled_onto_products_that_predate_them(self):
+        """The live catalogue was seeded before artwork existed — it must fill in."""
+        self.seed(no_images=True)
+        self.assertFalse(any(p.image for p in Product.objects.all()))
+        count = Product.objects.count()
+
+        self.seed()
+
+        self.assertEqual(Product.objects.count(), count, "backfilling must not duplicate rows")
+        self.assertTrue(all(p.image for p in Product.objects.all()))
+
+    def test_rerunning_does_not_regenerate_existing_images(self):
+        self.seed()
+        before = {p.slug: p.image.name for p in Product.objects.all()}
+
+        self.seed()
+
+        after = {p.slug: p.image.name for p in Product.objects.all()}
+        self.assertEqual(before, after)
+
+    def test_a_real_uploaded_photo_is_never_replaced(self):
+        self.seed(no_images=True)
+        product = Product.objects.get(name="Cocoa")
+        product.image.save("real-cocoa.jpg", ContentFile(b"pretend-photo"), save=True)
+
+        self.seed()
+        self.seed(regenerate_images=True)
+
+        product.refresh_from_db()
+        self.assertIn("real-cocoa", product.image.name)
+        self.assertEqual(product.image.read(), b"pretend-photo")
+
+    def test_generated_image_is_a_real_jpeg_of_the_right_size(self):
+        from PIL import Image as PILImage
+
+        self.seed()
+        product = Product.objects.first()
+
+        with product.image.open("rb") as handle:
+            img = PILImage.open(handle)
+            self.assertEqual(img.format, "JPEG")
+            self.assertEqual(img.size, (800, 600))
+
+    def test_categories_get_distinct_colours(self):
+        """A farmer should be able to tell categories apart at a glance."""
+        from apps.products.images import PALETTE
+
+        self.assertEqual(
+            len(PALETTE), len(Product.CATEGORY_CHOICES), "every category needs a colour"
+        )
+        grounds = [ground for ground, _ in PALETTE.values()]
+        self.assertEqual(len(grounds), len(set(grounds)), "colours must be distinct")
+
+    def test_api_serves_the_image_url(self):
+        self.seed()
+        farmer = User.objects.create_user(
+            username="img@example.com", email="img@example.com",
+            password="x" * 12, role=User.FARMER,
+        )
+        client = APIClient()
+        client.force_authenticate(user=farmer)
+
+        response = client.get(reverse("product-list"))
+        images = [r["image"] for r in response.data["results"]]
+
+        self.assertTrue(all(images), "the app must get an image for every product")
+        self.assertTrue(images[0].startswith("http"), "must be an absolute URL for the app")
+
+    def test_missing_font_does_not_break_generation(self):
+        """Render's container may not ship DejaVu — fall back rather than fail."""
+        from apps.products import images as images_module
+
+        with patch.object(images_module, "_FONT_CANDIDATES", ["/nope/missing.ttf"]):
+            content = images_module.build_placeholder("Maize", "grain", "Grains & Cereals")
+
+        self.assertGreater(len(content.read()), 0)
