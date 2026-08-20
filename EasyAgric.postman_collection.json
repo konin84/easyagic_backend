@@ -1014,27 +1014,33 @@
                 ""
               ],
               "query": [
-                {
-                  "key": "kind",
-                  "value": "input",
-                  "description": "input | produce — omit for both",
-                  "disabled": true
-                },
-                {
-                  "key": "limit_per_category",
-                  "value": "4",
-                  "description": "Cap products per group, e.g. a home screen showing a few per section",
-                  "disabled": true
-                },
-                {
-                  "key": "include_empty",
-                  "value": "true",
-                  "description": "Keep categories that currently have no products",
-                  "disabled": true
-                }
-              ]
+              {
+                "key": "group_by",
+                "value": "name",
+                "description": "kind (default, nested, curated order) | name (flat, categories A–Z by translated name)",
+                "disabled": true
+              },
+              {
+                "key": "kind",
+                "value": "input",
+                "description": "input | produce — omit for both",
+                "disabled": true
+              },
+              {
+                "key": "limit_per_category",
+                "value": "4",
+                "description": "Cap products per group, e.g. a home screen showing a few per section",
+                "disabled": true
+              },
+              {
+                "key": "include_empty",
+                "value": "true",
+                "description": "Keep categories that currently have no products",
+                "disabled": true
+              }
+            ]
             },
-            "description": "The whole catalogue in one request, grouped for a sectioned screen: each kind holds its categories, and each category holds its products.\\n\\nSaves calling /api/products/?category=... twelve times. Each product carries the same full payload as the flat list, images included.\\n\\n`count` on a category is the true total even when `limit_per_category` truncates the list, so a \\\"see all (7)\\\" link knows the real number. Empty categories are omitted unless `include_empty=true`. Labels and product text are translated into the user's language; `kind` and `code` stay English for filtering."
+            "description": "The whole catalogue in one request, so the app does not call /api/products/?category=... twelve times.\n\ngroup_by=kind (default) nests each kind with its categories, in a curated order — seeds before fertiliser, grains before cash crops — which suits a two-tab Inputs / Produce layout.\n\ngroup_by=name returns one flat array of all 12 categories sorted A–Z by their *translated* name, each still carrying kind and kind_display so you can badge it. Sorting ignores accents, so Équipement files under E rather than after Z.\n\nEach product carries the same full payload as the flat list, images included. `count` on a category is the true total even when limit_per_category truncates the list, so a \"see all (7)\" link knows the real number. Empty categories are omitted unless include_empty=true."
           }
         },
         {

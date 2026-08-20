@@ -881,3 +881,98 @@ class ProductsByCategoryTests(TestCase):
             self.get()
 
         self.assertLessEqual(api.call_count, 3, f"translated in {api.call_count} calls, expected a single pass")
+
+
+class GroupByNameTests(TestCase):
+    """?group_by=name — a flat, alphabetical category list."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_products", stdout=StringIO(), no_images=True)
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.client = APIClient()
+        self.farmer = User.objects.create_user(
+            username="n@example.com", email="n@example.com", password="x" * 12, role=User.FARMER,
+        )
+        self.client.force_authenticate(user=self.farmer)
+
+    def get(self, **params):
+        params.setdefault("group_by", "name")
+        return self.client.get(reverse("products-by-category"), params)
+
+    def test_returns_a_flat_list_of_categories(self):
+        response = self.get()
+
+        self.assertIsInstance(response.data, list)
+        self.assertNotIn("categories", response.data[0], "should be flat, not nested")
+        self.assertEqual(len(response.data), 12)
+
+    def test_sorted_alphabetically_by_name(self):
+        names = [c["name"] for c in self.get().data]
+        self.assertEqual(names, sorted(names, key=str.casefold))
+
+    def test_each_category_still_carries_its_kind(self):
+        for category in self.get().data:
+            self.assertIn(category["kind"], (Product.INPUT, Product.PRODUCE))
+            self.assertTrue(category["kind_display"])
+            self.assertIn(category["code"], Product.CATEGORIES_BY_KIND[category["kind"]])
+
+    def test_products_are_grouped_correctly(self):
+        seen = set()
+        for category in self.get().data:
+            self.assertEqual(category["count"], len(category["products"]))
+            for product in category["products"]:
+                self.assertEqual(product["category"], category["code"])
+                seen.add(product["id"])
+
+        self.assertEqual(seen, set(Product.objects.values_list("id", flat=True)))
+
+    def test_kind_filter_still_applies(self):
+        kinds = {c["kind"] for c in self.get(kind=Product.INPUT).data}
+        self.assertEqual(kinds, {Product.INPUT})
+
+    def test_limit_per_category_still_applies(self):
+        for category in self.get(limit_per_category=1).data:
+            self.assertLessEqual(len(category["products"]), 1)
+            self.assertEqual(category["count"], Product.objects.filter(category=category["code"]).count())
+
+    def test_default_grouping_is_unchanged(self):
+        response = self.client.get(reverse("products-by-category"))
+        self.assertIn("categories", response.data[0], "default must stay grouped by kind")
+
+    def test_unknown_group_by_is_rejected(self):
+        response = self.client.get(reverse("products-by-category"), {"group_by": "colour"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("group_by", response.data["error"])
+
+    def test_sorting_follows_the_translated_names(self):
+        """Alphabetical must mean alphabetical for the reader, not for English."""
+        self.farmer.language = "fr"
+        self.farmer.save(update_fields=["language"])
+        self.client.force_authenticate(user=User.objects.get(pk=self.farmer.pk))
+
+        reversing = {
+            "Seeds & Planting Material": "Amendements",
+            "Cash Crops": "Zingiber",
+        }
+
+        def translate(texts, language):
+            return [reversing.get(t, t) for t in texts]
+
+        with patch("apps.products.translation.translate_batch", side_effect=translate):
+            names = [c["name"] for c in self.get().data]
+
+        self.assertEqual(names[0], "Amendements")
+        self.assertEqual(names[-1], "Zingiber")
+
+    def test_accented_names_sort_without_being_pushed_to_the_end(self):
+        from apps.products.views import _sort_key
+
+        names = ["Zingiber", "Équipement de protection", "Amendements"]
+        self.assertEqual(
+            sorted(names, key=_sort_key),
+            ["Amendements", "Équipement de protection", "Zingiber"],
+        )

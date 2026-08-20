@@ -1,3 +1,5 @@
+import unicodedata
+
 from django.db import models
 
 from rest_framework import status
@@ -8,6 +10,17 @@ from rest_framework.views import APIView
 from .models import Product
 from .serializers import ProductSerializer
 from .translation import ensure_translations, translated_labels
+
+
+def _sort_key(name):
+    """
+    Sort key that ignores accents, so \u00c9quipement files under E rather than after Z.
+    Matters once category names are translated into French, Spanish or Portuguese.
+    """
+    stripped = "".join(
+        ch for ch in unicodedata.normalize("NFKD", name) if not unicodedata.combining(ch)
+    )
+    return stripped.casefold()
 
 
 def _context(request, products):
@@ -114,9 +127,11 @@ class ProductsByCategoryView(APIView):
     """
     GET /api/products/by-category/ — the whole catalogue, grouped.
 
-    Returns each kind with its categories, and each category with its products,
-    which is the shape a sectioned catalogue screen needs. Saves the app making
-    one request per category.
+    ?group_by=kind   (default) nested: each kind with its categories, categories
+                     in curated order (seeds before fertiliser, grains before
+                     cash crops) rather than alphabetical
+    ?group_by=name   flat: every category in one array, sorted by its translated
+                     name, each carrying `kind` so the app can still badge it
 
     ?kind=input|produce            restrict to one family
     ?limit_per_category=4          cap products per group, for a home screen
@@ -127,18 +142,22 @@ class ProductsByCategoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     MAX_PER_CATEGORY = 100
+    GROUPINGS = ("kind", "name")
 
     def get(self, request):
-        products = Product.objects.filter(is_active=True)
+        group_by = request.query_params.get("group_by", "kind").lower()
+        if group_by not in self.GROUPINGS:
+            return Response(
+                {"error": f"Unknown group_by '{group_by}'. Use kind or name."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         kind = request.query_params.get("kind")
-        if kind:
-            if kind not in dict(Product.KIND_CHOICES):
-                return Response(
-                    {"error": f"Unknown kind '{kind}'. Use input or produce."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            products = products.filter(kind=kind)
+        if kind and kind not in dict(Product.KIND_CHOICES):
+            return Response(
+                {"error": f"Unknown kind '{kind}'. Use input or produce."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         raw_limit = request.query_params.get("limit_per_category")
         limit = None
@@ -154,45 +173,62 @@ class ProductsByCategoryView(APIView):
 
         include_empty = request.query_params.get("include_empty", "").lower() in ("1", "true", "yes")
 
+        products = Product.objects.filter(is_active=True)
+        if kind:
+            products = products.filter(kind=kind)
         products = list(products)
+
         context = _context(request, products)
+        labels = context["labels"]
+        category_names = dict(Product.CATEGORY_CHOICES)
+        kind_names = dict(Product.KIND_CHOICES)
 
         grouped = {}
         for product in products:
             grouped.setdefault(product.category, []).append(product)
 
-        labels = context["labels"]
-        category_names = dict(Product.CATEGORY_CHOICES)
-        kind_names = dict(Product.KIND_CHOICES)
+        def build(kind_code, code):
+            rows = grouped.get(code, [])
+            english = category_names[code]
+            return {
+                "code": code,
+                "name": labels.get(english, english),
+                "kind": kind_code,
+                "kind_display": labels.get(kind_names[kind_code], kind_names[kind_code]),
+                "count": len(rows),
+                "products": ProductSerializer(
+                    rows[:limit] if limit else rows, many=True, context=context
+                ).data,
+            }
+
+        categories = [
+            build(kind_code, code)
+            for kind_code, codes in Product.CATEGORIES_BY_KIND.items()
+            if not kind or kind_code == kind
+            for code in codes
+            if grouped.get(code) or include_empty
+        ]
+
+        if group_by == "name":
+            return Response(sorted(categories, key=lambda c: _sort_key(c["name"])))
 
         payload = []
-        for kind_code, category_codes in Product.CATEGORIES_BY_KIND.items():
+        for kind_code in Product.CATEGORIES_BY_KIND:
             if kind and kind_code != kind:
                 continue
-
-            categories = []
-            for code in category_codes:
-                rows = grouped.get(code, [])
-                if not rows and not include_empty:
-                    continue
-                english = category_names[code]
-                categories.append({
-                    "code": code,
-                    "name": labels.get(english, english),
-                    "count": len(rows),
-                    "products": ProductSerializer(
-                        rows[:limit] if limit else rows, many=True, context=context
-                    ).data,
-                })
-
-            if not categories and not include_empty:
+            in_kind = [c for c in categories if c["kind"] == kind_code]
+            if not in_kind and not include_empty:
                 continue
-
             payload.append({
                 "kind": kind_code,
                 "kind_display": labels.get(kind_names[kind_code], kind_names[kind_code]),
-                "count": sum(c["count"] for c in categories),
-                "categories": categories,
+                "count": sum(c["count"] for c in in_kind),
+                # `kind` and `kind_display` are on the parent here, so drop them
+                # from each child rather than repeating them 12 times
+                "categories": [
+                    {k: v for k, v in c.items() if k not in ("kind", "kind_display")}
+                    for c in in_kind
+                ],
             })
 
         return Response(payload)

@@ -90,6 +90,8 @@ Chaque fiche porte un nom, une catégorie, une **description pratique** de deux 
 Les traductions sont **mises en cache sur la fiche produit** : l'API Google n'est appelée qu'une fois par langue, pas à chaque requête. Modifier un texte anglais dans l'admin invalide automatiquement ses traductions. Pour éviter que le premier fermier d'une langue n'attende l'appel API : `python manage.py translate_products` (par défaut, uniquement les langues réellement utilisées par des comptes existants ; `--all` pour les 17).
 - `GET /api/products/by-category/` — **catalogue complet groupé** : chaque famille avec ses catégories, chaque catégorie avec ses produits.
   Une seule requête au lieu de douze. `?kind=`, `?limit_per_category=` (ex. 4, pour un écran d'accueil), `?include_empty=`
+  - `?group_by=kind` (défaut) — imbriqué par famille, catégories dans un ordre choisi (semences avant engrais)
+  - `?group_by=name` — liste plate des 12 catégories triées A-Z sur le **nom traduit** (tri insensible aux accents)
 - `GET /api/products/categories/` — catégories groupées par famille, avec le nombre de produits (pour les filtres, sans les produits)
 - `GET /api/products/<slug>/` — fiche produit
 
