@@ -2,14 +2,15 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from apps.subscriptions.models import Subscription
+from apps.subscriptions.permissions import HasAnalysisCredit
 from apps.utils.email_translate import translate_email_content
 from .services import analyze_soil_image, NotSoilImageError
 
 
 class SoilAnalysisView(APIView):
     parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasAnalysisCredit]
 
     def post(self, request):
         if "image" not in request.FILES:
@@ -36,5 +37,8 @@ class SoilAnalysisView(APIView):
                 {"error": f"Soil analysis failed: {str(e)}"},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
+
+        # Only a successful analysis costs the farmer a credit
+        Subscription.consume_analysis(request.user)
 
         return Response(result)

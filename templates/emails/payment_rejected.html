@@ -1,0 +1,29 @@
+{% extends "emails/base.html" %}
+{% block title %}Payment Could Not Be Verified{% endblock %}
+
+{% block content %}
+<h2 style="color:#d32f2f;margin-top:0;">We could not verify your payment</h2>
+<p style="color:#333;line-height:1.6;">
+  We were unable to confirm the {{ payment.amount }} {{ payment.currency }}
+  {{ payment.get_method_display|lower }} payment you reported
+  {% if payment.reference %}(reference <strong>{{ payment.reference }}</strong>){% endif %}.
+</p>
+
+{% if payment.rejection_reason %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+  <tr>
+    <td style="background:#fdecea;border-left:4px solid #d32f2f;border-radius:4px;padding:20px;">
+      <p style="margin:0 0 6px;font-size:13px;color:#555;text-transform:uppercase;letter-spacing:1px;">Reason</p>
+      <p style="margin:0;color:#222;font-size:14px;line-height:1.6;">{{ payment.rejection_reason }}</p>
+    </td>
+  </tr>
+</table>
+{% endif %}
+
+<p style="color:#333;line-height:1.6;">
+  Your plan has not been changed. Please check the details and submit them again,
+  or contact us if you believe this is a mistake.
+</p>
+
+<p style="color:#333;line-height:1.6;"><strong>The EasyAgric Team</strong></p>
+{% endblock %}

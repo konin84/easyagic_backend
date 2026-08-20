@@ -1,0 +1,10 @@
+Hello {{ user.farm_name|default:user.email }},
+
+We were unable to confirm the {{ payment.amount }} {{ payment.currency }} {{ payment.get_method_display|lower }} payment you reported{% if payment.reference %} (reference {{ payment.reference }}){% endif %}.
+{% if payment.rejection_reason %}
+REASON
+  {{ payment.rejection_reason }}
+{% endif %}
+Your plan has not been changed. Please check the details and submit them again, or contact us if you believe this is a mistake.
+
+The EasyAgric Team

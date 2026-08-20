@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "apps.history",
     "apps.dashboard",
     "apps.notifications",
+    "apps.subscriptions",
 ]
 
 MIDDLEWARE = [
@@ -172,6 +173,13 @@ AUTH_USER_MODEL = "users.User"
 AUTHENTICATION_BACKENDS = [
     "apps.users.backends.EmailBackend",
 ]
+
+# Subscriptions — free trial granted to every farmer at registration
+TRIAL_DAYS = config("TRIAL_DAYS", default=14, cast=int)
+TRIAL_ANALYSIS_QUOTA = config("TRIAL_ANALYSIS_QUOTA", default=5, cast=int)
+# Fallback currency when the client doesn't specify one. Prices themselves live
+# in the PlanPrice table so ops can add a country without a redeploy.
+DEFAULT_CURRENCY = config("DEFAULT_CURRENCY", default="XOF")
 
 # Google Gemini
 GEMINI_API_KEY = config("GEMINI_API_KEY")

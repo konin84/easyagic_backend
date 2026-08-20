@@ -7,6 +7,8 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.subscriptions.models import Subscription
+
 from .models import User, OTP
 from .serializers import RegisterSerializer, LoginSerializer, UserProfileSerializer, RegisterAppManagerSerializer
 from .emails import send_welcome_email, send_otp_email
@@ -43,6 +45,7 @@ class RegisterView(APIView):
 
         password = _generate_password()
         user = serializer.save(password=password)
+        Subscription.start_trial(user)
 
         send_welcome_email(user, password)
 

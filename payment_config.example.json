@@ -1,0 +1,22 @@
+{
+  "_comment": "Copy to payment_config.json, replace every value, then run: python manage.py seed_payment_config --file payment_config.json    (or paste the JSON into the PAYMENT_CONFIG_JSON env var on Render). Amounts are per period: 30 days for basic and pro.",
+
+  "prices": [
+    { "plan": "basic", "currency": "XOF", "amount": 5000 },
+    { "plan": "pro",   "currency": "XOF", "amount": 15000 }
+  ],
+
+  "accounts": [
+    {
+      "currency": "XOF",
+      "bank_name": "REPLACE — e.g. Ecobank Côte d'Ivoire",
+      "account_name": "REPLACE — the account holder's name",
+      "account_number": "REPLACE — your account number",
+      "swift_or_iban": "",
+      "branch": "",
+      "cash_contact_name": "REPLACE — who farmers hand cash to",
+      "cash_contact_phone": "REPLACE — +225 ...",
+      "instructions": "Mention your phone number as the transfer reference."
+    }
+  ]
+}

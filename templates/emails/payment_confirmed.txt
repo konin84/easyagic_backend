@@ -1,0 +1,13 @@
+Hello {{ user.farm_name|default:user.email }},
+
+We have confirmed your {{ payment.get_method_display|lower }} payment. Your {{ payment.get_plan_display }} plan is now active.
+
+YOUR PLAN
+  Amount paid   : {{ payment.amount }} {{ payment.currency }}
+{% if payment.reference %}  Reference     : {{ payment.reference }}
+{% endif %}  Valid until   : {{ subscription.expires_at|date:"d M Y" }}
+  Soil analyses : {% if subscription.analysis_quota %}{{ subscription.analysis_quota }} included{% else %}Unlimited{% endif %}
+
+You can start analysing your soil again right away.
+
+The EasyAgric Team

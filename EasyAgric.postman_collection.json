@@ -21,6 +21,12 @@
       "value": "",
       "type": "string",
       "description": "JWT refresh token — populated automatically after Login or Register"
+    },
+    {
+      "key": "payment_id",
+      "value": "",
+      "type": "string",
+      "description": "Populated automatically after declaring or recording a payment"
     }
   ],
   "item": [
@@ -154,7 +160,7 @@
               { "key": "Authorization", "value": "Bearer {{access_token}}" }
             ],
             "url": "{{base_url}}/api/auth/me/",
-            "description": "Returns the authenticated user's profile: id, email, role, phone, farm_name, date_joined."
+            "description": "Returns the authenticated user's profile: id, email, role, phone, farm_name, date_joined, and `subscription` (plan, status, days_remaining, analyses_remaining). `subscription` is null for admins and app managers, who are not metered."
           }
         },
         {
@@ -301,7 +307,7 @@
                 }
               ]
             },
-            "description": "Upload a soil photo. Gemini Vision analyses it and returns soil type, color, texture, pH estimate, fertility, visible issues, and amendment recommendations."
+            "description": "Upload a soil photo. Gemini Vision analyses it and returns soil type, color, texture, pH estimate, fertility, visible issues, and amendment recommendations.\n\nConsumes one analysis credit, but only if the analysis succeeds. Returns 402 Payment Required when the trial has expired or its 5 analyses are used up — the body carries a machine-readable `code` (expired | quota_exhausted | cancelled) and the current subscription. Admins and app managers are never metered."
           }
         }
       ]
@@ -372,7 +378,7 @@
                 }
               ]
             },
-            "description": "Main mobile endpoint. Farmer takes a soil photo at their farm — the mobile app captures GPS automatically. Returns soil analysis, weather data, and crop recommendations in one response. Report is also emailed to the farmer and a push notification is sent. Admins and app managers can omit lat/lon — weather will be skipped but soil analysis still runs."
+            "description": "Main mobile endpoint. Farmer takes a soil photo at their farm — the mobile app captures GPS automatically. Returns soil analysis, weather data, and crop recommendations in one response. Report is also emailed to the farmer and a push notification is sent. Admins and app managers can omit lat/lon — weather will be skipped but soil analysis still runs.\n\nConsumes one analysis credit, and only if the soil analysis succeeds — a Gemini failure costs the farmer nothing. Returns 402 Payment Required once the 14-day / 5-analysis trial is exhausted; see Subscriptions & Payments."
           }
         }
       ]
@@ -477,6 +483,253 @@
               "options": { "raw": { "language": "json" } }
             },
             "description": "Removes the device token. Call this on logout so the user no longer receives push notifications on this device."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscriptions & Payments",
+      "description": "Every farmer gets a 14-day trial capped at 5 soil analyses when they register. After that, /advisor/ and /soil/analyze/ return 402 until a paid plan is activated.\n\nThere is no payment gateway: farmers pay in cash or by bank transfer and a human confirms it. A farmer-declared transfer lands as `pending` and unlocks nothing until staff confirm it; a payment recorded by an admin or app manager is confirmed on creation, because they are holding the money.",
+      "item": [
+        {
+          "name": "List Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/subscriptions/plans/",
+            "description": "Public. Lists every plan with its duration in days and included analysis quota (null quota = unlimited). Prices are NOT here — they are per-currency, see Get Payment Instructions."
+          }
+        },
+        {
+          "name": "My Subscription",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/subscriptions/me/",
+            "description": "Current plan, status, days_remaining and analyses_remaining for the logged-in farmer. Use this to drive the paywall screen in the app."
+          }
+        },
+        {
+          "name": "Get Payment Instructions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/subscriptions/payment-instructions/?currency=XOF",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "subscriptions",
+                "payment-instructions",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "currency",
+                  "value": "XOF",
+                  "description": "XOF | XAF | NGN | GHS | KES | UGX | TZS | RWF | ZAR | ETB | USD | EUR. Defaults to DEFAULT_CURRENCY."
+                }
+              ]
+            },
+            "description": "Everything the farmer needs in order to pay: the price of each plan in this currency, the bank account to transfer to, and who to hand cash to.\n\nReturns 404 with `available_currencies` if nothing is priced in the requested currency — a fresh deploy must be seeded first (`manage.py seed_payment_config`)."
+          }
+        },
+        {
+          "name": "Declare Bank Transfer (Farmer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('payment_id', pm.response.json().payment.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/subscriptions/payments/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan\": \"pro\",\n  \"months\": 1,\n  \"method\": \"bank_transfer\",\n  \"currency\": \"XOF\",\n  \"amount\": 15000,\n  \"reference\": \"ECO-99812\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "The farmer reports a transfer they have already made. Lands as `pending` and changes nothing until staff confirm it.\n\n`amount` is optional — it defaults to the list price (price x months). A smaller amount is accepted but flagged to staff via `shortfall`. A bank transfer needs either a `reference` or a receipt photo; to send a photo instead, switch the body to form-data with fields plan, method, currency and a `proof` file.\n\nSaves the new payment id into {{payment_id}}."
+          }
+        },
+        {
+          "name": "Record Cash Payment (Staff)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('payment_id', pm.response.json().payment.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/subscriptions/payments/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"plan\": \"pro\",\n  \"months\": 1,\n  \"method\": \"cash\",\n  \"currency\": \"XOF\",\n  \"reference\": \"RC-0042\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Admin / app manager only. An agent who collected cash in the field records it against the farmer's account (`email` or `user_id`).\n\nBecause the agent is holding the money, this is CONFIRMED immediately — the plan activates and the farmer is emailed, with no second review step. A farmer calling this for someone else gets 403."
+          }
+        },
+        {
+          "name": "List Payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/subscriptions/payments/?status=pending",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "subscriptions",
+                "payments",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "description": "pending | confirmed | rejected"
+                },
+                {
+                  "key": "method",
+                  "value": "bank_transfer",
+                  "description": "cash | bank_transfer",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Farmers see only their own payments; admins and app managers see everyone's. Filter by `status=pending` for the daily queue of transfers waiting to be checked against the bank statement."
+          }
+        },
+        {
+          "name": "Confirm Payment (Staff)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/subscriptions/payments/{{payment_id}}/confirm/",
+            "description": "Admin / app manager only. Confirms the money arrived: activates the plan for the requested number of months, resets the analysis counter, and emails the farmer in their own language.\n\nReturns the updated subscription. Confirming twice returns 400."
+          }
+        },
+        {
+          "name": "Reject Payment (Staff)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/subscriptions/payments/{{payment_id}}/reject/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"No matching credit on the bank statement.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Admin / app manager only. The plan is left untouched and the farmer is emailed the reason. A payment that is already confirmed cannot be rejected (400) — adjust it in Django admin instead."
+          }
+        },
+        {
+          "name": "Upgrade Plan Directly (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/subscriptions/upgrade/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"farmer@example.com\",\n  \"plan\": \"pro\",\n  \"months\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Admin / app manager only. Moves a farmer onto a paid plan WITHOUT recording a payment — for complimentary accounts, goodwill extensions or fixing a mistake. Normal paid signups should go through the payment endpoints so the money is auditable.\n\nIdentify the farmer by `email` or `user_id`. `months` and `analysis_quota` are optional and default to the plan's configuration."
           }
         }
       ]

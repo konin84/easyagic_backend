@@ -36,17 +36,21 @@ Django REST API backend for a mobile app serving African smallholder farmers. Co
 
 - **`apps/notifications`** — `DeviceToken` model (user FK, unique token, platform android/ios). `services.py::send_push` lazily initializes Firebase from `FIREBASE_CREDENTIALS_JSON` and fires FCM multicast messages from a background thread. `POST /api/notifications/register/` (upsert by token), `POST /api/notifications/unregister/`.
 
+- **`apps/subscriptions`** — Trial/paywall layer. `Subscription` (one per user) carries `plan`, `expires_at`, `analysis_quota`, `analyses_used`; `status` is *derived* from those fields (`active` / `expired` / `quota_exhausted` / `cancelled`) rather than stored, so trials expire without any cron job. Farmers get a 14-day, 5-analysis trial at registration (`Subscription.start_trial`, called from `RegisterView`); `Subscription.for_user` lazily starts one for accounts predating the feature. `HasAnalysisCredit` (`permissions.py`) gates the two image endpoints and raises `SubscriptionRequired` → **402** with a translated message, a machine-readable `code`, and a subscription snapshot. Credits are charged by `Subscription.consume_analysis` *after* a successful analysis (`SELECT FOR UPDATE` + `F()`), so failed Gemini calls are free; privileged users are never metered. Plan durations/quotas live in `Subscription.PLAN_CONFIG`; trial values come from `TRIAL_DAYS` / `TRIAL_ANALYSIS_QUOTA` in settings. Endpoints: `GET /api/subscriptions/plans/`, `GET /api/subscriptions/me/`, `POST /api/subscriptions/upgrade/` (privileged only — payment is out-of-band for now; a gateway webhook would call `subscription.upgrade(...)` instead).
+
+  **Manual payments** (no gateway — cash and bank transfer, confirmed by hand): `PlanPrice` (plan × currency → amount) and `PaymentAccount` (bank details + cash contact, one per currency) live in the DB so ops can reprice or open a country from Django admin without a redeploy. `Payment` records one cash/bank-transfer payment with `status` (pending/confirmed/rejected), `reference`, optional `proof` ImageField (Cloudinary in prod), and `expected_amount` so the `shortfall` property flags underpayment. Two entry paths through `POST /api/subscriptions/payments/`: a farmer declaring their own transfer lands as **pending**, while a privileged user recording money they collected is **confirmed on creation** (they're holding the cash). `Payment.confirm()` is transactional and calls `subscription.upgrade(plan, months)`, then an email goes out via `apps/subscriptions/emails.py`. Endpoints: `GET payment-instructions/?currency=`, `GET|POST payments/`, `POST payments/<pk>/confirm/`, `POST payments/<pk>/reject/` (both privileged). `PaymentAdmin` exposes the pending queue with bulk confirm/reject actions. A fresh deploy has no prices, so `seed_payment_config` (`apps/subscriptions/management/commands/`) bootstraps `PlanPrice` + `PaymentAccount` rows from `PAYMENT_CONFIG_JSON` (or `--file`), following the same idempotent, silent-if-unset pattern as `ensure_superuser` and running from `render.yaml`'s start command; it **creates but never overwrites**, so prices edited in Django admin survive redeploys (`--overwrite` forces the JSON). `payment_config.example.json` is the fill-in template. Covered by `apps/subscriptions/tests.py` (38 tests).
+
 - **`apps/utils`** — `email_translate.py`: wrapper around Google Cloud Translation REST API (`translate_email_content` for HTML/text blocks, `translate_batch` for lists of short strings). Falls back to original English text silently on missing key/unsupported language/failure. Used by `apps/users/emails.py`, `apps/advisor/emails.py`, `apps/crops/services.py`.
 
 ## Data flow: farmer gets crop recommendations
 
 1. Farmer logs in (`POST /api/auth/login/`) → JWT access/refresh tokens.
-2. Farmer app calls `POST /api/advisor/` with soil photo (multipart) + GPS lat/lon + `Authorization: Bearer <access>`.
+2. Farmer app calls `POST /api/advisor/` with soil photo (multipart) + GPS lat/lon + `Authorization: Bearer <access>`. `HasAnalysisCredit` checks the subscription first — expired trial or exhausted quota short-circuits to 402.
 3. `AdvisorView.post` (`apps/advisor/views.py:35-150`) validates input, then in parallel:
    - `soil.services.analyze_soil_image` → Gemini vision call → structured soil JSON.
    - `weather.services.get_agricultural_data` → Open-Meteo → current temp + soil temp/moisture + forecast.
 4. `crops.services.get_crop_recommendations(soil_type, current_temp)` scores the static crop database.
-5. Response (soil analysis + weather + crop recommendations, translated to the user's `language`) returned synchronously.
+5. One analysis credit is consumed (only if the soil analysis succeeded), then the response (soil analysis + weather + crop recommendations, translated to the user's `language`) is returned synchronously.
 6. In a background thread: `AnalysisRecord` saved (`apps/history`), translated advice-report email sent (`apps/advisor/emails.py`), FCM push sent to registered device tokens (`apps/notifications/services.py`).
 7. Farmer can later browse `GET /api/history/`; admins/app managers see aggregates via `/api/dashboard/`.
 
@@ -57,6 +61,7 @@ Django REST API backend for a mobile app serving African smallholder farmers. Co
 - Password reset via OTP (6-digit, 10-min TTL, single-use), verified at `/api/auth/password-reset/verify/`.
 - Roles: `farmer` (self-registers), `admin` (auto-seeded), `appmanager` (admin-created only). Permission classes `IsFarmer`/`IsAdminUser` in `apps/users/permissions.py`; `is_privileged` (staff or admin/appmanager) relaxes GPS requirements on advisor/weather endpoints.
 - `language` field (19 choices) drives translation of outbound emails and crop-recommendation text.
+- **Metering**: `/api/advisor/` and `/api/soil/analyze/` additionally require analysis credit via `HasAnalysisCredit`; admins/app managers bypass it.
 
 ## External integrations
 
@@ -72,6 +77,7 @@ Django REST API backend for a mobile app serving African smallholder farmers. Co
 
 - `render.yaml` defines a Render web service: `buildCommand: ./build.sh`, `startCommand: python manage.py migrate && python manage.py ensure_superuser && gunicorn config.wsgi:application`, Python 3.12.8. Several env vars (`DATABASE_URL`, Cloudinary, Resend, Firebase creds, superuser creds, Google Translate key) must be set manually in the Render dashboard; `DJANGO_SECRET_KEY` is auto-generated.
 - `build.sh` runs `uv pip install -r requirements.txt` then `collectstatic --noinput`.
+- Start command chains `migrate && ensure_superuser && seed_payment_config && gunicorn`; each management command is idempotent and no-ops when its env vars are unset.
 - `config/settings.py:162-167` hardens production (`SECURE_SSL_REDIRECT`, secure cookies, CSRF trusted origins) when `DEBUG=False`, trusting Render's `X-Forwarded-Proto` header.
 - Global exception handling: `config/exceptions.py` wraps unhandled DRF exceptions as JSON 500s, plus a `handler500` fallback for non-DRF errors.
 
@@ -88,5 +94,6 @@ Django REST API backend for a mobile app serving African smallholder farmers. Co
 - Push notifications: `apps/notifications/services.py`
 - Translation helper: `apps/utils/email_translate.py`
 - History model: `apps/history/models.py`
+- Subscription model & paywall: `apps/subscriptions/models.py`, `apps/subscriptions/permissions.py`
 - Dashboard stats: `apps/dashboard/views.py`
 - Deployment: `render.yaml`, `build.sh`

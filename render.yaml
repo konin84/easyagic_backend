@@ -4,7 +4,7 @@ services:
     env: python
     plan: free
     buildCommand: ./build.sh
-    startCommand: python manage.py migrate && python manage.py ensure_superuser && gunicorn config.wsgi:application
+    startCommand: python manage.py migrate && python manage.py ensure_superuser && python manage.py seed_payment_config && gunicorn config.wsgi:application
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.8
@@ -40,3 +40,7 @@ services:
         sync: false
       - key: GOOGLE_TRANSLATE_API_KEY
         sync: false
+      - key: PAYMENT_CONFIG_JSON
+        sync: false
+      - key: DEFAULT_CURRENCY
+        value: XOF

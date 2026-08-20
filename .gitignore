@@ -9,3 +9,9 @@ wheels/
 # Virtual environments
 .venv
 .env
+
+# Uploaded media (local dev only — Cloudinary in production)
+media/
+
+# Filled-in payment config (real bank details) — only the .example is tracked
+payment_config.json

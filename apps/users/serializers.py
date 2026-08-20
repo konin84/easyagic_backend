@@ -1,5 +1,9 @@
 from django.contrib.auth import authenticate
 from rest_framework import serializers
+
+from apps.subscriptions.models import Subscription
+from apps.subscriptions.serializers import SubscriptionSerializer
+
 from .models import User
 
 
@@ -57,11 +61,19 @@ class LoginSerializer(serializers.Serializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    subscription = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
             "id", "email", "role",
             "phone", "farm_name", "language",
-            "date_joined",
+            "date_joined", "subscription",
         ]
-        read_only_fields = ["id", "email", "role", "date_joined"]
+        read_only_fields = ["id", "email", "role", "date_joined", "subscription"]
+
+    def get_subscription(self, user):
+        """Privileged accounts aren't metered, so they carry no subscription."""
+        if user.is_privileged:
+            return None
+        return SubscriptionSerializer(Subscription.for_user(user)).data

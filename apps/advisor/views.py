@@ -5,7 +5,6 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
-from rest_framework.permissions import IsAuthenticated
 
 from apps.weather.services import get_agricultural_data
 from apps.soil.services import analyze_soil_image, NotSoilImageError
@@ -13,6 +12,8 @@ from apps.crops.services import get_crop_recommendations, translate_crop_recomme
 from apps.history.models import AnalysisRecord
 from apps.notifications.models import DeviceToken
 from apps.notifications.services import send_push
+from apps.subscriptions.models import Subscription
+from apps.subscriptions.permissions import HasAnalysisCredit
 from apps.utils.email_translate import translate_email_content
 from .emails import send_advice_email
 
@@ -31,7 +32,7 @@ class AdvisorView(APIView):
     """
 
     parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasAnalysisCredit]
 
     def post(self, request):
         errors = {}
@@ -121,6 +122,10 @@ class AdvisorView(APIView):
             response["warnings"] = {"soil_analysis": f"Soil analysis failed: {soil_error}"}
         if weather_error:
             response.setdefault("warnings", {})["weather"] = f"Weather fetch failed: {weather_error}"
+
+        # A failed soil analysis costs the farmer nothing
+        if soil_analysis is not None:
+            Subscription.consume_analysis(request.user)
 
         # Save record, send email and push notification without blocking the response
         def _save_and_notify():
