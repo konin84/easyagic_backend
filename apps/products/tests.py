@@ -410,3 +410,71 @@ class ImagePrecedenceTests(TestCase):
             url = product.get("image_url") or ""
             if url:
                 self.assertTrue(url.startswith("https://"), f"{product['name']} is not https")
+
+
+class BackfillExistingCatalogueTests(TestCase):
+    """
+    Regression: the live catalogue was seeded before photos existed, and
+    create-not-overwrite meant a later deploy silently withheld every image_url,
+    leaving the app showing null images.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        media = override_settings(MEDIA_ROOT=self.tmp.name)
+        media.enable()
+        self.addCleanup(media.disable)
+
+        Product.objects.all().delete()
+        call_command("seed_products", stdout=StringIO(), no_images=True)
+        # rewind to the state production was actually in
+        Product.objects.update(image_url="", image_credit="")
+
+    def seed(self, **options):
+        call_command("seed_products", stdout=StringIO(), **options)
+
+    def test_plain_reseed_backfills_photo_urls(self):
+        """Must work WITHOUT --overwrite, since deploys never pass it."""
+        self.assertEqual(Product.objects.exclude(image_url="").count(), 0)
+
+        self.seed()
+
+        self.assertGreaterEqual(Product.objects.exclude(image_url="").count(), 30)
+
+    def test_backfill_leaves_no_product_imageless(self):
+        self.seed()
+        self.assertEqual([p.name for p in Product.objects.all() if not p.display_image], [])
+
+    def test_backfill_brings_the_licence_credit_with_the_photo(self):
+        self.seed()
+        for product in Product.objects.exclude(image_url=""):
+            self.assertTrue(product.image_credit.strip(), f"{product.name} photo lacks attribution")
+
+    def test_backfill_never_overwrites_a_url_someone_chose(self):
+        product = Product.objects.get(name="Cocoa")
+        product.image_url = "https://ops.example.com/cocoa.jpg"
+        product.save(update_fields=["image_url"])
+
+        self.seed()
+
+        product.refresh_from_db()
+        self.assertEqual(product.image_url, "https://ops.example.com/cocoa.jpg")
+
+    def test_backfill_does_not_touch_edited_descriptions(self):
+        Product.objects.filter(name="Cocoa").update(description="Reworded by ops")
+
+        self.seed()
+
+        self.assertEqual(Product.objects.get(name="Cocoa").description, "Reworded by ops")
+
+    def test_backfill_is_stable_across_repeated_deploys(self):
+        self.seed()
+        first = {p.slug: (p.image_url, p.image_credit) for p in Product.objects.all()}
+
+        self.seed()
+        self.seed()
+
+        after = {p.slug: (p.image_url, p.image_credit) for p in Product.objects.all()}
+        self.assertEqual(first, after)
+        self.assertEqual(Product.objects.count(), len(first))

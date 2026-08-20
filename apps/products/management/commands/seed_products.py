@@ -30,6 +30,12 @@ class Command(BaseCommand):
 
     FIELDS = ["kind", "category", "description", "unit", "image_url", "image_credit"]
 
+    # Fields filled in on rows that predate them. Create-not-overwrite protects
+    # edits, but it also silently withheld image_url from the live catalogue,
+    # which had already been seeded before photos existed. Backfilling an EMPTY
+    # field changes nothing anyone chose, so it is safe without --overwrite.
+    BACKFILL_FIELDS = ["image_url", "image_credit"]
+
     def add_arguments(self, parser):
         parser.add_argument("--file", help="Chemin d'un fichier JSON de produits.")
         parser.add_argument(
@@ -62,7 +68,7 @@ class Command(BaseCommand):
         valid_kinds = {k for k, _ in Product.KIND_CHOICES}
         valid_categories = {c for c, _ in Product.CATEGORY_CHOICES}
 
-        created = updated = skipped = imaged = 0
+        created = updated = skipped = imaged = backfilled = 0
         for index, row in enumerate(rows):
             name = (row.get("name") or "").strip()
             if not name:
@@ -91,7 +97,10 @@ class Command(BaseCommand):
                 created += 1
                 continue
 
-            # Backfill artwork onto rows that predate it, without touching their text
+            # Fill in fields the row never had, then artwork — neither touches
+            # anything already set, so both are safe without --overwrite
+            if self._backfill(existing, values):
+                backfilled += 1
             if self._attach_image(existing, options):
                 imaged += 1
 
@@ -107,7 +116,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f"Catalogue amorcé — {created} créé(s), {updated} mis à jour, {skipped} inchangé(s), "
-            f"{imaged} image(s) générée(s)."
+            f"{backfilled} complété(s), {imaged} image(s) générée(s)."
         ))
         if skipped and not options["overwrite"]:
             self.stdout.write("Utiliser --overwrite pour forcer les valeurs du JSON.")
@@ -145,4 +154,23 @@ class Command(BaseCommand):
             return False
 
         product.image.save(f"generated/{product.slug}.jpg", content, save=True)
+        return True
+
+    def _backfill(self, product, values):
+        """
+        Copy JSON values into fields that are still empty on an existing row.
+
+        Only empty fields are touched, so a description reworded in Django admin
+        or a manually-set photo URL is never disturbed.
+        """
+        changed = []
+        for field in self.BACKFILL_FIELDS:
+            incoming = (values.get(field) or "").strip()
+            if incoming and not (getattr(product, field) or "").strip():
+                setattr(product, field, incoming)
+                changed.append(field)
+
+        if not changed:
+            return False
+        product.save(update_fields=changed + ["updated_at"])
         return True
