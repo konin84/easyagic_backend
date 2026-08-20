@@ -26,6 +26,8 @@ def _seed_catalogue(sender, **kwargs):
     from django.core.management import call_command
 
     try:
-        call_command("seed_products", verbosity=0)
+        call_command("seed_products", verbosity=1)
     except Exception as exc:  # never let seeding break a deploy
-        print(f"[EasyAgric] Product catalogue seeding skipped: {exc}")
+        # Printed, not swallowed: this line is the only signal in the deploy log
+        # when the catalogue fails to seed.
+        print(f"[EasyAgric] PRODUCT CATALOGUE SEEDING FAILED — {type(exc).__name__}: {exc}")

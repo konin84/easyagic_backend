@@ -295,3 +295,38 @@ class ProductImageTests(TestCase):
             content = images_module.build_placeholder("Maize", "grain", "Grains & Cereals")
 
         self.assertGreater(len(content.read()), 0)
+
+
+class StorageBackendTests(TestCase):
+    """
+    Guards the failure that shipped a catalogue of null images to production:
+    settings switch media storage to Cloudinary whenever CLOUDINARY_CLOUD_NAME is
+    set, but the package was never declared as a dependency, so every save raised.
+    """
+
+    def test_cloudinary_backend_is_importable(self):
+        """The exact failure: 'No module named cloudinary_storage' on every save."""
+        import importlib.util
+
+        # find_spec, not import: the module raises ImproperlyConfigured at import
+        # time when credentials are absent. What broke production was the package
+        # being missing entirely.
+        self.assertIsNotNone(
+            importlib.util.find_spec("cloudinary_storage"),
+            "cloudinary_storage is not installed — every media save in production will fail",
+        )
+        self.assertIsNotNone(importlib.util.find_spec("cloudinary"))
+
+    def test_whitenoise_static_backend_is_importable(self):
+        from django.core.files.storage import InvalidStorageError, storages
+
+        try:
+            storages["staticfiles"]
+        except InvalidStorageError as exc:
+            self.fail(f"staticfiles storage cannot load, collectstatic would fail: {exc}")
+
+    def test_storage_packages_are_declared_in_requirements(self):
+        """They were installed on Render only as leftovers from an older build."""
+        requirements = Path("requirements.txt").read_text().lower()
+        for package in ("cloudinary", "django-cloudinary-storage", "whitenoise"):
+            self.assertIn(package, requirements, f"{package} is used but not pinned")

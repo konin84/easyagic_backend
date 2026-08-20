@@ -134,7 +134,11 @@ class Command(BaseCommand):
                 product.name, product.category, product.get_category_display()
             )
         except Exception as exc:
-            self.stdout.write(f"  ! image non générée pour {product.name} : {exc}")
+            # Loud on purpose: a silently swallowed storage error once made a
+            # broken production deploy look like a successful one.
+            self.stderr.write(
+                f"  ! IMAGE FAILED for {product.name} — {type(exc).__name__}: {exc}"
+            )
             return False
 
         product.image.save(f"generated/{product.slug}.jpg", content, save=True)
