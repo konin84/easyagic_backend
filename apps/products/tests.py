@@ -976,3 +976,223 @@ class GroupByNameTests(TestCase):
             sorted(names, key=_sort_key),
             ["Amendements", "Équipement de protection", "Zingiber"],
         )
+
+
+class ComposableGroupingTests(TestCase):
+    """group_by=kind,name — nested by kind AND ordered by category name."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_products", stdout=StringIO(), no_images=True)
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.client = APIClient()
+        self.farmer = User.objects.create_user(
+            username="cg@example.com", email="cg@example.com", password="x" * 12, role=User.FARMER,
+        )
+        self.client.force_authenticate(user=self.farmer)
+
+    def categories(self, **params):
+        return self.client.get(reverse("product-categories"), params)
+
+    def by_category(self, **params):
+        return self.client.get(reverse("products-by-category"), params)
+
+    # -------------------------------------------------------------- the parser
+
+    def test_parser_accepts_the_three_shapes(self):
+        from apps.products.views import parse_group_by
+
+        self.assertEqual(parse_group_by("kind"), (True, False))
+        self.assertEqual(parse_group_by("name"), (False, True))
+        self.assertEqual(parse_group_by("kind,name"), (True, True))
+
+    def test_parser_is_forgiving_about_order_and_spacing(self):
+        from apps.products.views import parse_group_by
+
+        self.assertEqual(parse_group_by("name,kind"), (True, True))
+        self.assertEqual(parse_group_by(" KIND , NAME "), (True, True))
+        self.assertEqual(parse_group_by(None), (True, False))
+
+    def test_parser_rejects_nonsense(self):
+        from apps.products.views import parse_group_by
+
+        self.assertIsNone(parse_group_by("colour"))
+        self.assertIsNone(parse_group_by("kind,colour"))
+
+    # ------------------------------------------------------- categories endpoint
+
+    def test_categories_nested_and_sorted_by_name(self):
+        response = self.categories(group_by="kind,name")
+
+        for group in response.data:
+            names = [c["name"] for c in group["categories"]]
+            self.assertEqual(names, sorted(names, key=str.casefold))
+            self.assertIn(group["kind"], (Product.INPUT, Product.PRODUCE))
+
+    def test_categories_default_keeps_the_curated_order(self):
+        first = self.categories().data[0]
+
+        self.assertEqual(first["kind"], Product.INPUT)
+        self.assertEqual(first["categories"][0]["code"], Product.SEED)
+
+    def test_categories_flat_by_name(self):
+        response = self.categories(group_by="name")
+
+        self.assertEqual(len(response.data), 12)
+        self.assertNotIn("categories", response.data[0])
+        names = [c["name"] for c in response.data]
+        self.assertEqual(names, sorted(names, key=str.casefold))
+        self.assertIn(response.data[0]["kind"], (Product.INPUT, Product.PRODUCE))
+
+    def test_categories_counts_survive_every_grouping(self):
+        expected = {
+            c["code"]: c["count"]
+            for g in self.categories().data for c in g["categories"]
+        }
+        for value in ("kind,name", "name"):
+            data = self.categories(group_by=value).data
+            rows = data if value == "name" else [c for g in data for c in g["categories"]]
+            self.assertEqual({c["code"]: c["count"] for c in rows}, expected)
+
+    def test_categories_rejects_a_bad_grouping(self):
+        response = self.categories(group_by="colour")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("group_by", response.data["error"])
+
+    # ------------------------------------------------------ by-category endpoint
+
+    def test_by_category_nested_and_sorted_by_name(self):
+        response = self.by_category(group_by="kind,name")
+
+        for group in response.data:
+            names = [c["name"] for c in group["categories"]]
+            self.assertEqual(names, sorted(names, key=str.casefold))
+            for category in group["categories"]:
+                self.assertEqual(category["count"], len(category["products"]))
+
+    def test_by_category_keeps_every_product_across_groupings(self):
+        def ids(data, nested):
+            rows = [c for g in data for c in g["categories"]] if nested else data
+            return {p["id"] for c in rows for p in c["products"]}
+
+        base = ids(self.by_category().data, True)
+        self.assertEqual(ids(self.by_category(group_by="kind,name").data, True), base)
+        self.assertEqual(ids(self.by_category(group_by="name").data, False), base)
+
+    def test_both_endpoints_order_categories_identically(self):
+        """A chips row and a sectioned list must not disagree on order."""
+        chips = [c["code"] for g in self.categories(group_by="kind,name").data for c in g["categories"]]
+        sections = [c["code"] for g in self.by_category(group_by="kind,name").data for c in g["categories"]]
+
+        self.assertEqual(sections, [code for code in chips if code in sections])
+
+    def test_sorting_uses_translated_names_in_both_endpoints(self):
+        self.farmer.language = "fr"
+        self.farmer.save(update_fields=["language"])
+        self.client.force_authenticate(user=User.objects.get(pk=self.farmer.pk))
+
+        renames = {"Seeds & Planting Material": "Amendements", "Tools & Equipment": "Zingiber"}
+
+        def translate(texts, language):
+            return [renames.get(t, t) for t in texts]
+
+        with patch("apps.products.translation.translate_batch", side_effect=translate):
+            chips = self.categories(group_by="kind,name").data
+
+        inputs = next(g for g in chips if g["kind"] == Product.INPUT)
+        names = [c["name"] for c in inputs["categories"]]
+        self.assertEqual(names[0], "Amendements")
+        self.assertEqual(names[-1], "Zingiber")
+
+
+class CategoryFilterByNameTests(TestCase):
+    """Selecting a category by its display name, not just its code."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_products", stdout=StringIO(), no_images=True)
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.client = APIClient()
+        self.farmer = User.objects.create_user(
+            username="cf@example.com", email="cf@example.com", password="x" * 12, role=User.FARMER,
+        )
+        self.client.force_authenticate(user=self.farmer)
+
+    def filter_by(self, value, **extra):
+        return self.client.get(reverse("product-list"), {"category": value, "limit": 100, **extra})
+
+    def expected(self, code):
+        return Product.objects.filter(category=code, is_active=True).count()
+
+    def test_code_still_works(self):
+        response = self.filter_by(Product.CASH_CROP)
+        self.assertEqual(response.data["count"], self.expected(Product.CASH_CROP))
+
+    def test_display_name_works(self):
+        response = self.filter_by("Cash Crops")
+
+        self.assertEqual(response.data["count"], self.expected(Product.CASH_CROP))
+        self.assertEqual({p["category"] for p in response.data["results"]}, {Product.CASH_CROP})
+
+    def test_matching_ignores_case_and_padding(self):
+        for value in ("cash crops", "CASH CROPS", "  Cash Crops  "):
+            with self.subTest(value=value):
+                self.assertEqual(
+                    self.filter_by(value).data["count"], self.expected(Product.CASH_CROP)
+                )
+
+    def test_name_with_an_ampersand_works(self):
+        """'Seeds & Planting Material' must survive being sent back verbatim."""
+        response = self.filter_by("Seeds & Planting Material")
+        self.assertEqual(response.data["count"], self.expected(Product.SEED))
+
+    def test_every_category_name_from_the_chips_payload_resolves(self):
+        """Whatever /categories/ hands the app must be accepted back."""
+        chips = self.client.get(reverse("product-categories")).data
+        for group in chips:
+            for category in group["categories"]:
+                with self.subTest(category=category["name"]):
+                    response = self.filter_by(category["name"])
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.data["count"], category["count"])
+
+    def test_translated_name_resolves(self):
+        self.farmer.language = "fr"
+        self.farmer.save(update_fields=["language"])
+        self.client.force_authenticate(user=User.objects.get(pk=self.farmer.pk))
+
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate()):
+            response = self.filter_by("[fr] Cash Crops")
+
+        self.assertEqual(response.data["count"], self.expected(Product.CASH_CROP))
+
+    def test_unknown_category_is_rejected_with_the_valid_options(self):
+        response = self.filter_by("Cashy Crops")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Cashy Crops", response.data["error"])
+        codes = {c["code"] for c in response.data["valid_categories"]}
+        self.assertEqual(codes, {c for c, _ in Product.CATEGORY_CHOICES})
+
+    def test_category_filter_combines_with_search(self):
+        response = self.filter_by("Cash Crops", search="cocoa")
+
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["name"], "Cocoa")
+
+    def test_resolver_unit_behaviour(self):
+        from apps.products.views import resolve_category
+
+        labels = {"Cash Crops": "Cultures de rente"}
+        self.assertEqual(resolve_category("cash_crop", labels), Product.CASH_CROP)
+        self.assertEqual(resolve_category("Cash Crops", labels), Product.CASH_CROP)
+        self.assertEqual(resolve_category("cultures de rente", labels), Product.CASH_CROP)
+        self.assertIsNone(resolve_category("nope", labels))
+        self.assertIsNone(resolve_category("", labels))
+        self.assertIsNone(resolve_category(None, labels))

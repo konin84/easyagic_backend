@@ -12,6 +12,54 @@ from .serializers import ProductSerializer
 from .translation import ensure_translations, translated_labels
 
 
+GROUPINGS = {
+    "kind": (True, False),        # nested by kind, curated category order
+    "name": (False, True),        # flat, categories A-Z
+    "kind,name": (True, True),    # nested by kind, categories A-Z inside each
+}
+
+
+def resolve_category(value, labels):
+    """
+    Turn whatever the app sends into a category code.
+
+    Accepts the code (`cash_crop`), the English label (`Cash Crops`), or the
+    label as the farmer sees it translated (`Cultures de rente`) — so a UI that
+    only holds the display name does not have to map it back to a code. Matching
+    ignores case and surrounding space. Returns None if nothing matches.
+    """
+    if not value:
+        return None
+
+    needle = value.strip().casefold()
+
+    for code, _ in Product.CATEGORY_CHOICES:
+        if code.casefold() == needle:
+            return code
+
+    for code, english in Product.CATEGORY_CHOICES:
+        if english.casefold() == needle:
+            return code
+        translated = labels.get(english)
+        if translated and translated.casefold() == needle:
+            return code
+
+    return None
+
+
+def parse_group_by(value):
+    """
+    Returns (nest_by_kind, sort_by_name), or None if the value is not understood.
+
+    `kind,name` is the composition: group by kind first, then order the
+    categories inside each kind by name.
+    """
+    key = ",".join(part.strip() for part in (value or "kind").lower().split(",") if part.strip())
+    if key == "name,kind":
+        key = "kind,name"
+    return GROUPINGS.get(key)
+
+
 def _sort_key(name):
     """
     Sort key that ignores accents, so \u00c9quipement files under E rather than after Z.
@@ -34,7 +82,10 @@ class ProductListView(APIView):
     """
     GET /api/products/ — the catalogue the app lists.
 
-    Filters: ?kind=input|produce, ?category=<slug>, ?search=<name or description>
+    Filters: ?kind=input|produce,
+             ?category=  the code (cash_crop), the English label (Cash Crops), or
+                         the label as the farmer sees it translated,
+             ?search=<name or description>
     Paging:  ?limit= (default 50, max 200), ?offset=
     """
 
@@ -52,7 +103,20 @@ class ProductListView(APIView):
 
         category = request.query_params.get("category")
         if category:
-            products = products.filter(category=category)
+            labels = translated_labels(getattr(request.user, "language", "en") or "en")
+            code = resolve_category(category, labels)
+            if code is None:
+                return Response(
+                    {
+                        "error": f"Unknown category '{category}'.",
+                        "valid_categories": [
+                            {"code": c, "name": labels.get(n, n)}
+                            for c, n in Product.CATEGORY_CHOICES
+                        ],
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            products = products.filter(category=code)
 
         search = request.query_params.get("search")
         if search:
@@ -106,20 +170,40 @@ class ProductCategoryListView(APIView):
             .values("category")
             .annotate(total=models.Count("id"))
         }
+        grouping = parse_group_by(request.query_params.get("group_by"))
+        if grouping is None:
+            return Response(
+                {"error": "group_by must be kind, name, or kind,name."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        nest_by_kind, sort_by_name = grouping
+
         translated = translated_labels(getattr(request.user, "language", "en") or "en")
         labels = {code: translated.get(name, name) for code, name in Product.CATEGORY_CHOICES}
         kind_labels = {code: translated.get(name, name) for code, name in Product.KIND_CHOICES}
 
+        def entries(kind_code):
+            rows = [
+                {"code": code, "name": labels[code], "count": counts.get(code, 0)}
+                for code in Product.CATEGORIES_BY_KIND[kind_code]
+            ]
+            return sorted(rows, key=lambda c: _sort_key(c["name"])) if sort_by_name else rows
+
+        if not nest_by_kind:
+            flat = [
+                {**row, "kind": kind_code, "kind_display": kind_labels[kind_code]}
+                for kind_code in Product.CATEGORIES_BY_KIND
+                for row in entries(kind_code)
+            ]
+            return Response(sorted(flat, key=lambda c: _sort_key(c["name"])))
+
         return Response([
             {
-                "kind": kind,
-                "kind_display": kind_labels[kind],
-                "categories": [
-                    {"code": code, "name": labels[code], "count": counts.get(code, 0)}
-                    for code in categories
-                ],
+                "kind": kind_code,
+                "kind_display": kind_labels[kind_code],
+                "categories": entries(kind_code),
             }
-            for kind, categories in Product.CATEGORIES_BY_KIND.items()
+            for kind_code in Product.CATEGORIES_BY_KIND
         ])
 
 
@@ -127,11 +211,13 @@ class ProductsByCategoryView(APIView):
     """
     GET /api/products/by-category/ — the whole catalogue, grouped.
 
-    ?group_by=kind   (default) nested: each kind with its categories, categories
-                     in curated order (seeds before fertiliser, grains before
-                     cash crops) rather than alphabetical
-    ?group_by=name   flat: every category in one array, sorted by its translated
-                     name, each carrying `kind` so the app can still badge it
+    ?group_by=kind        (default) nested by kind, categories in curated order
+                          (seeds before fertiliser, grains before cash crops)
+    ?group_by=kind,name   nested by kind, categories sorted A-Z inside each
+    ?group_by=name        flat: every category in one array sorted A-Z, each
+                          carrying `kind` so the app can still badge it
+
+    Sorting always uses the translated name, so it is alphabetical for the reader.
 
     ?kind=input|produce            restrict to one family
     ?limit_per_category=4          cap products per group, for a home screen
@@ -142,15 +228,15 @@ class ProductsByCategoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     MAX_PER_CATEGORY = 100
-    GROUPINGS = ("kind", "name")
 
     def get(self, request):
-        group_by = request.query_params.get("group_by", "kind").lower()
-        if group_by not in self.GROUPINGS:
+        grouping = parse_group_by(request.query_params.get("group_by"))
+        if grouping is None:
             return Response(
-                {"error": f"Unknown group_by '{group_by}'. Use kind or name."},
+                {"error": "group_by must be kind, name, or kind,name."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        nest_by_kind, sort_by_name = grouping
 
         kind = request.query_params.get("kind")
         if kind and kind not in dict(Product.KIND_CHOICES):
@@ -209,8 +295,11 @@ class ProductsByCategoryView(APIView):
             if grouped.get(code) or include_empty
         ]
 
-        if group_by == "name":
-            return Response(sorted(categories, key=lambda c: _sort_key(c["name"])))
+        if sort_by_name:
+            categories.sort(key=lambda c: _sort_key(c["name"]))
+
+        if not nest_by_kind:
+            return Response(categories)
 
         payload = []
         for kind_code in Product.CATEGORIES_BY_KIND:

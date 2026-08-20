@@ -85,13 +85,18 @@ Chaque fiche porte un nom, une catégorie, une **description pratique** de deux 
 
 - `GET /api/products/` — catalogue paginé (`?kind=`, `?category=`, `?search=`, `?limit=`, `?offset=`)
 
+  `?category=` accepte indifféremment le **code** (`cash_crop`), le **nom affiché** (`Cash Crops`) ou le **nom traduit** (`Cultures de rente`) : l'application peut renvoyer directement le `name` reçu de `/categories/`, sans le retraduire en code. Casse et espaces ignorés ; une valeur inconnue renvoie 400 avec la liste des catégories valides plutôt qu'une liste vide.
+
 **Traduction** : `name`, `description`, `unit`, `kind_display` et `category_display` sont renvoyés **dans la langue du fermier connecté**. Les champs `slug`, `kind` et `category` restent en anglais : ce sont des clés de filtrage, à ne jamais afficher. Le champ `language` indique la langue réelle de la réponse (`en` si la traduction n'est pas disponible — Wolof, Baoulé et Dioula ne sont pas pris en charge par Google Translate).
 
 Les traductions sont **mises en cache sur la fiche produit** : l'API Google n'est appelée qu'une fois par langue, pas à chaque requête. Modifier un texte anglais dans l'admin invalide automatiquement ses traductions. Pour éviter que le premier fermier d'une langue n'attende l'appel API : `python manage.py translate_products` (par défaut, uniquement les langues réellement utilisées par des comptes existants ; `--all` pour les 17).
 - `GET /api/products/by-category/` — **catalogue complet groupé** : chaque famille avec ses catégories, chaque catégorie avec ses produits.
   Une seule requête au lieu de douze. `?kind=`, `?limit_per_category=` (ex. 4, pour un écran d'accueil), `?include_empty=`
   - `?group_by=kind` (défaut) — imbriqué par famille, catégories dans un ordre choisi (semences avant engrais)
-  - `?group_by=name` — liste plate des 12 catégories triées A-Z sur le **nom traduit** (tri insensible aux accents)
+  - `?group_by=kind,name` — imbriqué par famille **et** catégories triées A-Z à l'intérieur de chaque famille
+  - `?group_by=name` — liste plate des 12 catégories triées A-Z
+
+  Le tri porte toujours sur le **nom traduit** et ignore les accents (Équipement se classe à E). `?group_by=` fonctionne aussi sur `/api/products/categories/`, avec les mêmes valeurs — les puces de filtre et la liste par sections restent donc dans le même ordre.
 - `GET /api/products/categories/` — catégories groupées par famille, avec le nombre de produits (pour les filtres, sans les produits)
 - `GET /api/products/<slug>/` — fiche produit
 
