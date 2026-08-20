@@ -13,7 +13,7 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             "id", "slug", "name",
             "kind", "kind_display", "category", "category_display",
-            "description", "unit", "image",
+            "description", "unit", "image", "image_credit",
         ]
         read_only_fields = fields
 

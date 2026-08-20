@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils.text import slugify
 
+from .images import GENERATED_PREFIX
+
 
 class Product(models.Model):
     """
@@ -63,7 +65,11 @@ class Product(models.Model):
     )
     image = models.ImageField(upload_to="products/", null=True, blank=True)
     image_url = models.URLField(
-        blank=True, help_text="Used when no image file is uploaded."
+        blank=True, help_text="Freely-licensed photo, used in preference to a generated card."
+    )
+    image_credit = models.CharField(
+        max_length=255, blank=True,
+        help_text="Attribution required by the photo's licence. Show it wherever the image is displayed.",
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -83,7 +89,20 @@ class Product(models.Model):
 
     @property
     def display_image(self):
-        """Uploaded file wins over the URL; None when neither is set yet."""
+        """
+        Best available artwork, in order: a real photo someone uploaded, then a
+        licensed photo URL, then the generated placeholder card. None only if the
+        product somehow has all three missing.
+        """
+        if self.image and not self.image.name.startswith(GENERATED_PREFIX):
+            return self.image.url
+        if self.image_url:
+            return self.image_url
         if self.image:
             return self.image.url
-        return self.image_url or None
+        return None
+
+    @property
+    def image_is_placeholder(self):
+        """True while this product is still showing generated art rather than a photo."""
+        return self.display_image is not None and not self.image_url and bool(self.image)

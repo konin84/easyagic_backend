@@ -28,7 +28,7 @@ class Command(BaseCommand):
 
     help = "Amorce le catalogue de produits agricoles (apps/products/data/products.json)."
 
-    FIELDS = ["kind", "category", "description", "unit", "image_url"]
+    FIELDS = ["kind", "category", "description", "unit", "image_url", "image_credit"]
 
     def add_arguments(self, parser):
         parser.add_argument("--file", help="Chemin d'un fichier JSON de produits.")
@@ -122,6 +122,9 @@ class Command(BaseCommand):
         so anything outside that prefix is treated as a genuine upload.
         """
         if options.get("no_images"):
+            return False
+        # A licensed photo makes the generated card unnecessary
+        if product.image_url:
             return False
 
         if product.image:

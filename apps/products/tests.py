@@ -121,7 +121,7 @@ class ProductAPITests(TestCase):
         self.assertEqual(
             set(row),
             {"id", "slug", "name", "kind", "kind_display", "category",
-             "category_display", "description", "unit", "image"},
+             "category_display", "description", "unit", "image", "image_credit"},
         )
 
     def test_filter_by_kind(self):
@@ -228,7 +228,9 @@ class ProductImageTests(TestCase):
         self.seed()
 
         self.assertEqual(Product.objects.count(), count, "backfilling must not duplicate rows")
-        self.assertTrue(all(p.image for p in Product.objects.all()))
+        # products with a licensed photo need no card; the rest must have got one
+        self.assertTrue(all(p.display_image for p in Product.objects.all()))
+        self.assertTrue(all(p.image for p in Product.objects.filter(image_url="")))
 
     def test_rerunning_does_not_regenerate_existing_images(self):
         self.seed()
@@ -330,3 +332,81 @@ class StorageBackendTests(TestCase):
         requirements = Path("requirements.txt").read_text().lower()
         for package in ("cloudinary", "django-cloudinary-storage", "whitenoise"):
             self.assertIn(package, requirements, f"{package} is used but not pinned")
+
+
+class ImagePrecedenceTests(TestCase):
+    """A real photo beats a licensed URL beats a generated card."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        media = override_settings(MEDIA_ROOT=self.tmp.name)
+        media.enable()
+        self.addCleanup(media.disable)
+        Product.objects.all().delete()
+        call_command("seed_products", stdout=StringIO())
+
+    def test_no_product_is_ever_imageless(self):
+        missing = [p.name for p in Product.objects.all() if not p.display_image]
+        self.assertEqual(missing, [])
+
+    def test_most_products_carry_a_licensed_photo(self):
+        with_photo = Product.objects.exclude(image_url="").count()
+        self.assertGreaterEqual(with_photo, 30)
+
+    def test_products_without_a_photo_fall_back_to_generated_art(self):
+        for product in Product.objects.filter(image_url=""):
+            self.assertTrue(product.image, f"{product.name} has neither photo nor card")
+            self.assertTrue(product.image_is_placeholder)
+
+    def test_no_generated_card_is_made_when_a_photo_url_exists(self):
+        """Generating art for a product that already has a photo wastes storage."""
+        for product in Product.objects.exclude(image_url=""):
+            self.assertFalse(product.image, f"{product.name} has a redundant generated card")
+
+    def test_photo_url_wins_over_a_generated_card(self):
+        product = Product.objects.filter(image_url="").first()
+        self.assertTrue(product.image_is_placeholder)
+
+        product.image_url = "https://cdn.example.com/real.jpg"
+        product.save(update_fields=["image_url"])
+
+        self.assertEqual(product.display_image, "https://cdn.example.com/real.jpg")
+        self.assertFalse(product.image_is_placeholder)
+
+    def test_uploaded_photo_wins_over_everything(self):
+        product = Product.objects.exclude(image_url="").first()
+        product.image.save("real.jpg", ContentFile(b"photo"), save=True)
+
+        self.assertTrue(product.display_image.endswith(".jpg"))
+        self.assertNotEqual(product.display_image, product.image_url)
+
+    def test_every_photo_carries_its_licence_attribution(self):
+        """CC BY-SA requires credit — an unattributed photo is a licence breach."""
+        for product in Product.objects.exclude(image_url=""):
+            self.assertTrue(
+                product.image_credit.strip(),
+                f"{product.name} has a photo with no attribution",
+            )
+
+    def test_api_exposes_image_and_credit(self):
+        farmer = User.objects.create_user(
+            username="c@example.com", email="c@example.com", password="x" * 12, role=User.FARMER,
+        )
+        client = APIClient()
+        client.force_authenticate(user=farmer)
+
+        response = client.get(reverse("product-list"), {"limit": 200})
+        rows = response.data["results"]
+
+        self.assertTrue(all(r["image"] for r in rows))
+        for row in rows:
+            if row["image"].startswith("https://upload.wikimedia.org"):
+                self.assertTrue(row["image_credit"], f"{row['name']} missing credit")
+
+    def test_seed_urls_are_https(self):
+        payload = json.loads(Path("apps/products/data/products.json").read_text())
+        for product in payload["products"]:
+            url = product.get("image_url") or ""
+            if url:
+                self.assertTrue(url.startswith("https://"), f"{product['name']} is not https")

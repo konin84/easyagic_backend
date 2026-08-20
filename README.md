@@ -87,7 +87,11 @@ Chaque fiche porte un nom, une catégorie, une **description pratique** de deux 
 - `GET /api/products/categories/` — catégories groupées par famille, avec le nombre de produits (pour les filtres)
 - `GET /api/products/<slug>/` — fiche produit
 
-**Images** : chaque produit reçoit automatiquement une **image générée** (carte colorée par catégorie portant le nom du produit), afin qu'aucune fiche ne s'affiche cassée dans l'application. Ce sont des visuels d'attente, à remplacer par de vraies photos.
+**Images** : 38 produits sur 48 portent une **vraie photo sous licence libre** (Wikimedia Commons), chacune vérifiée visuellement et par requête HTTP. Les 10 restants (dont aucune photo correcte n'a été trouvée) affichent une **carte générée** colorée par catégorie. Aucune fiche n'est donc jamais vide.
+
+Ordre de priorité du champ `image` : photo téléversée dans l'admin > photo sous licence (`image_url`) > carte générée.
+
+> ⚖️ **Attribution** : la plupart des photos sont en CC BY-SA et **exigent un crédit**. Le champ `image_credit` de l'API le fournit — il doit être affiché à côté de l'image dans l'application.
 
 - Téléverser une vraie photo depuis l'admin Django la remplace définitivement : les images générées sont écrites dans `products/generated/`, et **une photo téléversée n'est jamais écrasée**, pas même par `--regenerate-images`
 - Alternative : renseigner `image_url` dans `apps/products/data/products.json`
