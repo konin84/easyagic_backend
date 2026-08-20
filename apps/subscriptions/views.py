@@ -1,3 +1,6 @@
+from django.db import models
+from django.utils import timezone
+
 from rest_framework import status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -15,6 +18,7 @@ from .serializers import (
     PaymentSerializer,
     PlanPriceSerializer,
     SubscriptionSerializer,
+    UpgradeRequestSerializer,
     UpgradeSerializer,
 )
 
@@ -246,3 +250,58 @@ class PaymentRejectView(APIView):
             "message": "Payment rejected.",
             "payment": PaymentSerializer(payment).data,
         })
+
+
+class UpgradeRequestView(APIView):
+    """
+    POST /api/subscriptions/upgrade-request/ — the farmer asks to go paid.
+
+    Creates a PENDING payment and changes nothing else: the farmer stays on their
+    current plan, and the paywall stays shut until an admin or app manager
+    confirms the money arrived via /payments/<pk>/confirm/.
+
+    The response carries the amount owed and where to send it, so the app can show
+    the payment instructions on the same screen.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.is_privileged:
+            return Response(
+                {"error": "Staff accounts are not metered. Use /subscriptions/upgrade/ to move a farmer onto a plan."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = UpgradeRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # An earlier request that was only ever an intent gets superseded, so a farmer
+        # can change their mind. A declared payment (reference or receipt attached) is
+        # evidence and is left alone for staff to rule on.
+        (
+            Payment.objects
+            .filter(user=request.user, status=Payment.PENDING, reference="", recorded_by__isnull=True)
+            .filter(models.Q(proof="") | models.Q(proof__isnull=True))
+            .update(
+                status=Payment.REJECTED,
+                rejection_reason="Superseded by a newer upgrade request.",
+                reviewed_at=timezone.now(),
+            )
+        )
+
+        payment = Payment.objects.create(user=request.user, **serializer.validated_data)
+        account = PaymentAccount.objects.filter(currency=payment.currency, is_active=True).first()
+
+        return Response(
+            {
+                "message": "Upgrade requested. Your plan will start as soon as we confirm your payment.",
+                "amount_due": payment.amount,
+                "currency": payment.currency,
+                "payment": PaymentSerializer(payment).data,
+                "account": PaymentAccountSerializer(account).data if account else None,
+                "subscription": SubscriptionSerializer(Subscription.for_user(request.user)).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )

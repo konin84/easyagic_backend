@@ -11,6 +11,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     days_remaining = serializers.IntegerField(read_only=True, allow_null=True)
     analyses_remaining = serializers.IntegerField(read_only=True, allow_null=True)
     plan_display = serializers.CharField(source="get_plan_display", read_only=True)
+    pending_upgrade = serializers.SerializerMethodField()
 
     class Meta:
         model = Subscription
@@ -19,9 +20,18 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "is_trial", "is_paid", "is_active",
             "started_at", "expires_at", "days_remaining",
             "analysis_quota", "analyses_used", "analyses_remaining",
-            "cancelled_at",
+            "cancelled_at", "pending_upgrade",
         ]
         read_only_fields = fields
+
+    def get_pending_upgrade(self, subscription):
+        """The plan the farmer has asked for but staff haven't confirmed yet."""
+        pending = (
+            Payment.objects.filter(user_id=subscription.user_id, status=Payment.PENDING)
+            .order_by("-created_at")
+            .first()
+        )
+        return PaymentSerializer(pending).data if pending else None
 
 
 class UpgradeSerializer(serializers.Serializer):
@@ -134,3 +144,39 @@ class PaymentCreateSerializer(serializers.ModelSerializer):
 
 class PaymentRejectSerializer(serializers.Serializer):
     reason = serializers.CharField(allow_blank=True, required=False, default="")
+
+
+class UpgradeRequestSerializer(serializers.ModelSerializer):
+    """
+    A farmer asking to move onto a paid plan, before any money has changed hands.
+
+    Unlike PaymentCreateSerializer this asserts nothing about a payment already
+    made, so no reference or receipt is required — `method` is only how they
+    intend to pay. Nothing activates until staff confirm.
+    """
+
+    class Meta:
+        model = Payment
+        fields = ["plan", "months", "currency", "method", "note"]
+        extra_kwargs = {"months": {"required": False}}
+
+    def validate_plan(self, plan):
+        if not Subscription.PLAN_CONFIG.get(plan, {}).get("is_paid"):
+            raise serializers.ValidationError("Choose a paid plan.")
+        return plan
+
+    def validate(self, data):
+        currency = data.get("currency", Payment._meta.get_field("currency").default)
+        months = data.get("months") or 1
+
+        price = PlanPrice.lookup(data["plan"], currency)
+        if price is None:
+            raise serializers.ValidationError({
+                "currency": f"No active price for the {data['plan']} plan in {currency}."
+            })
+
+        data["currency"] = currency
+        data["months"] = months
+        data["amount"] = price.amount * months
+        data["expected_amount"] = data["amount"]
+        return data

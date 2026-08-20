@@ -52,9 +52,12 @@ Durées et quotas configurables via `TRIAL_DAYS` et `TRIAL_ANALYSIS_QUOTA`.
 Pas de passerelle de paiement : les fermiers paient **en espèces** (auprès d'un agent) ou par **virement bancaire**, et un membre de l'équipe confirme la réception de l'argent.
 
 - `GET /api/subscriptions/payment-instructions/?currency=XOF` — tarifs, coordonnées bancaires et contact pour le paiement en espèces
-- `POST /api/subscriptions/payments/` — le fermier déclare son virement (référence + photo du reçu facultative) → statut **pending**
+- `POST /api/subscriptions/upgrade-request/` — **le fermier demande à passer à un plan payant**, avant tout paiement. Rien n'est activé : il reste sur son plan actuel et le paywall reste fermé jusqu'à confirmation par l'équipe. La réponse renvoie le montant dû et les coordonnées bancaires.
+- `POST /api/subscriptions/payments/` — le fermier déclare un virement déjà effectué (référence + photo du reçu facultative) → statut **pending**
 - `POST /api/subscriptions/payments/<id>/confirm/` — admin / app manager confirme → **le plan est activé automatiquement** et le fermier reçoit un email
 - `POST /api/subscriptions/payments/<id>/reject/` — rejet avec motif, le plan reste inchangé
+
+Le champ `pending_upgrade` de `/api/subscriptions/me/` expose la demande en attente, pour afficher « Pro — en attente de confirmation » dans l'application.
 
 Quand un agent encaisse lui-même de l'argent, il enregistre le paiement via le même endpoint (avec `email` du fermier) : celui-ci est **confirmé immédiatement**, puisqu'il détient les fonds.
 

@@ -511,7 +511,7 @@
               }
             ],
             "url": "{{base_url}}/api/subscriptions/me/",
-            "description": "Current plan, status, days_remaining and analyses_remaining for the logged-in farmer. Use this to drive the paywall screen in the app."
+            "description": "Current plan, status, days_remaining and analyses_remaining for the logged-in farmer. Use this to drive the paywall screen in the app.\n\n`pending_upgrade` holds the plan the farmer has requested but staff have not confirmed yet (null when there is none) — show it as 'Pro — awaiting confirmation'."
           }
         },
         {
@@ -544,6 +544,46 @@
               ]
             },
             "description": "Everything the farmer needs in order to pay: the price of each plan in this currency, the bank account to transfer to, and who to hand cash to.\n\nReturns 404 with `available_currencies` if nothing is priced in the requested currency — a fresh deploy must be seeded first (`manage.py seed_payment_config`)."
+          }
+        },
+        {
+          "name": "Request Upgrade (Farmer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('payment_id', pm.response.json().payment.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/subscriptions/upgrade-request/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan\": \"pro\",\n  \"months\": 1,\n  \"method\": \"cash\",\n  \"currency\": \"XOF\",\n  \"note\": \"Agent visiting my farm on Friday.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "The farmer asks to move onto a paid plan BEFORE paying — no reference or receipt needed, `method` is only how they intend to pay.\n\nNothing activates: the farmer stays on their current plan and the paywall stays shut until an admin or app manager calls Confirm Payment. The response returns `amount_due` and the bank account, so the app can show how to pay on the same screen.\n\nSending a new request replaces a previous un-evidenced one, so a farmer can change their mind. A transfer already declared with a reference is left alone for staff to rule on.\n\nSaves the pending payment id into {{payment_id}}."
           }
         },
         {

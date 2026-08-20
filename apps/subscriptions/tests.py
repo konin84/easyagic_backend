@@ -32,6 +32,16 @@ def image_upload():
     return ("image", ("soil.png", buffer.getvalue(), "image/png"))
 
 
+def sync_emails():
+    """
+    Emails are delivered from a daemon thread, so `mail.outbox` is racy to assert on.
+    Swap the async sender for a direct call to the same delivery function.
+    """
+    from apps.users.emails import _deliver
+
+    return patch("apps.subscriptions.emails._send_async", side_effect=_deliver)
+
+
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class SubscriptionFlowTests(TestCase):
     def setUp(self):
@@ -297,7 +307,8 @@ class ManualPaymentTests(TestCase):
         self.assertEqual(self.analyze_as(self.farmer).status_code, 402)
 
         self.client.force_authenticate(user=self.staff)
-        response = self.client.post(reverse("payment-confirm", args=[payment_id]))
+        with sync_emails():
+            response = self.client.post(reverse("payment-confirm", args=[payment_id]))
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["subscription"]["plan"], Subscription.PRO)
 
@@ -416,11 +427,12 @@ class ManualPaymentTests(TestCase):
         ).data["payment"]["id"]
 
         self.client.force_authenticate(user=self.staff)
-        response = self.client.post(
-            reverse("payment-reject", args=[payment_id]),
-            {"reason": "No matching credit on the bank statement."},
-            format="json",
-        )
+        with sync_emails():
+            response = self.client.post(
+                reverse("payment-reject", args=[payment_id]),
+                {"reason": "No matching credit on the bank statement."},
+                format="json",
+            )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["payment"]["status"], Payment.REJECTED)
 
@@ -593,3 +605,158 @@ class SeedPaymentConfigTests(TestCase):
 
         self.assertEqual(PlanPrice.objects.count(), 2)
         self.assertEqual(PaymentAccount.objects.count(), 1)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class FarmerUpgradeRequestTests(TestCase):
+    """A farmer can ask to go paid, but only staff can make it take effect."""
+
+    def setUp(self):
+        self.client = APIClient()
+        PlanPrice.objects.create(plan=Subscription.PRO, currency="XOF", amount=15000)
+        PlanPrice.objects.create(plan=Subscription.BASIC, currency="XOF", amount=5000)
+        PaymentAccount.objects.create(
+            currency="XOF", bank_name="Ecobank CI",
+            account_name="EasyAgric SARL", account_number="CI001",
+        )
+        self.farmer = User.objects.create_user(
+            username="up@example.com", email="up@example.com", password="x" * 12, role=User.FARMER,
+        )
+        Subscription.start_trial(self.farmer)
+        Subscription.objects.filter(user=self.farmer).update(analyses_used=5)
+        self.staff = User.objects.create_user(
+            username="mgr@example.com", email="mgr@example.com", password="x" * 12, role=User.APP_MANAGER,
+        )
+
+    def analyze_as(self, user):
+        user = User.objects.get(pk=user.pk)
+        self.client.force_authenticate(user=user)
+        with patch("apps.soil.views.analyze_soil_image", return_value=FAKE_SOIL):
+            return self.client.post(
+                reverse("soil-analyze"), {"image": _file(image_upload()[1])}, format="multipart"
+            )
+
+    def request_upgrade(self, **overrides):
+        self.client.force_authenticate(user=self.farmer)
+        payload = {"plan": Subscription.PRO, "method": "cash", "currency": "XOF"}
+        payload.update(overrides)
+        return self.client.post(reverse("subscription-upgrade-request"), payload, format="json")
+
+    # ------------------------------------------------------------ the request
+
+    def test_request_needs_no_payment_reference_and_quotes_the_price(self):
+        response = self.request_upgrade()
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["amount_due"], Decimal("15000.00"))
+        self.assertEqual(response.data["account"]["bank_name"], "Ecobank CI")
+        self.assertEqual(response.data["payment"]["status"], Payment.PENDING)
+
+    def test_requesting_does_not_activate_anything(self):
+        self.request_upgrade()
+
+        self.farmer.subscription.refresh_from_db()
+        self.assertEqual(self.farmer.subscription.plan, Subscription.TRIAL)
+        self.assertEqual(self.analyze_as(self.farmer).status_code, 402)
+
+    def test_pending_request_is_visible_to_the_app(self):
+        self.request_upgrade()
+
+        self.client.force_authenticate(user=self.farmer)
+        response = self.client.get(reverse("subscription-me"))
+        self.assertEqual(response.data["plan"], Subscription.TRIAL)
+        self.assertEqual(response.data["pending_upgrade"]["plan"], Subscription.PRO)
+        self.assertEqual(response.data["pending_upgrade"]["status"], Payment.PENDING)
+
+    def test_no_pending_upgrade_reads_as_null(self):
+        self.client.force_authenticate(user=self.farmer)
+        self.assertIsNone(self.client.get(reverse("subscription-me")).data["pending_upgrade"])
+
+    # ------------------------------------------------------- staff confirms it
+
+    def test_staff_confirmation_is_what_starts_the_plan(self):
+        payment_id = self.request_upgrade().data["payment"]["id"]
+
+        self.client.force_authenticate(user=self.staff)
+        with sync_emails():
+            response = self.client.post(reverse("payment-confirm", args=[payment_id]))
+        self.assertEqual(response.status_code, 200, response.data)
+
+        self.farmer.subscription.refresh_from_db()
+        self.assertEqual(self.farmer.subscription.plan, Subscription.PRO)
+        self.assertEqual(self.analyze_as(self.farmer).status_code, 200)
+        self.assertIn("Payment Confirmed", mail.outbox[0].subject)
+
+        # the request is no longer pending once acted on
+        self.client.force_authenticate(user=self.farmer)
+        self.assertIsNone(self.client.get(reverse("subscription-me")).data["pending_upgrade"])
+
+    def test_farmer_cannot_confirm_their_own_request(self):
+        payment_id = self.request_upgrade().data["payment"]["id"]
+
+        self.client.force_authenticate(user=self.farmer)
+        response = self.client.post(reverse("payment-confirm", args=[payment_id]))
+
+        self.assertEqual(response.status_code, 403)
+        self.farmer.subscription.refresh_from_db()
+        self.assertEqual(self.farmer.subscription.plan, Subscription.TRIAL)
+
+    def test_farmer_cannot_reach_the_direct_upgrade_endpoint(self):
+        self.client.force_authenticate(user=self.farmer)
+        response = self.client.post(
+            reverse("subscription-upgrade"),
+            {"email": self.farmer.email, "plan": Subscription.PRO},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    # -------------------------------------------------------- changing my mind
+
+    def test_new_request_supersedes_the_previous_intent(self):
+        self.request_upgrade(plan=Subscription.BASIC)
+        self.request_upgrade(plan=Subscription.PRO)
+
+        pending = Payment.objects.filter(user=self.farmer, status=Payment.PENDING)
+        self.assertEqual(pending.count(), 1)
+        self.assertEqual(pending.get().plan, Subscription.PRO)
+        superseded = Payment.objects.get(plan=Subscription.BASIC)
+        self.assertEqual(superseded.status, Payment.REJECTED)
+        self.assertIn("Superseded", superseded.rejection_reason)
+
+    def test_a_declared_payment_with_evidence_is_never_auto_superseded(self):
+        self.client.force_authenticate(user=self.farmer)
+        self.client.post(
+            reverse("payment-list-create"),
+            {"plan": Subscription.BASIC, "method": "bank_transfer",
+             "currency": "XOF", "reference": "ECO-555"},
+            format="json",
+        )
+
+        self.request_upgrade(plan=Subscription.PRO)
+
+        # the referenced transfer still awaits a human decision
+        declared = Payment.objects.get(reference="ECO-555")
+        self.assertEqual(declared.status, Payment.PENDING)
+        self.assertEqual(Payment.objects.filter(status=Payment.PENDING).count(), 2)
+
+    # -------------------------------------------------------------- validation
+
+    def test_cannot_request_the_free_trial(self):
+        response = self.request_upgrade(plan=Subscription.TRIAL)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("plan", response.data)
+
+    def test_cannot_request_a_currency_with_no_price(self):
+        response = self.request_upgrade(currency="KES")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("currency", response.data)
+
+    def test_staff_are_redirected_to_the_direct_upgrade_endpoint(self):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.post(
+            reverse("subscription-upgrade-request"),
+            {"plan": Subscription.PRO, "method": "cash", "currency": "XOF"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not metered", response.data["error"])
