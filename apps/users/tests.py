@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -259,3 +261,53 @@ class AdminUserManagementTests(TestCase):
     def test_patch_without_is_active_is_rejected(self):
         response = self.client.patch(self.detail_url(self.farmer), {}, format="json")
         self.assertEqual(response.status_code, 400)
+
+
+class JWTLifetimeTests(TestCase):
+    """Token lifetimes are a security setting — a silent regression should fail loudly."""
+
+    def test_access_token_lasts_24_hours(self):
+        from django.conf import settings
+
+        self.assertEqual(settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"], timedelta(hours=24))
+
+    def test_issued_token_actually_expires_in_24_hours(self):
+        """Assert on a real token, not just the setting."""
+        from rest_framework_simplejwt.tokens import AccessToken
+
+        user = User.objects.create_user(
+            username="jwt@example.com", email="jwt@example.com",
+            password="x" * 12, role=User.FARMER,
+        )
+        token = AccessToken.for_user(user)
+        lifetime = datetime.fromtimestamp(token["exp"], tz=timezone.utc) - datetime.fromtimestamp(
+            token["iat"], tz=timezone.utc
+        )
+
+        self.assertEqual(lifetime, timedelta(hours=24))
+
+    def test_refresh_rotation_and_blacklisting_stay_on(self):
+        """A 24h access token makes refresh hygiene matter more, not less."""
+        from django.conf import settings
+
+        self.assertTrue(settings.SIMPLE_JWT["ROTATE_REFRESH_TOKENS"])
+        self.assertTrue(settings.SIMPLE_JWT["BLACKLIST_AFTER_ROTATION"])
+
+    def test_login_returns_a_token_valid_for_a_day(self):
+        password = "Str0ngPass!23"
+        user = User.objects.create_user(
+            username="login@example.com", email="login@example.com",
+            password=password, role=User.FARMER,
+        )
+        response = APIClient().post(
+            reverse("auth-login"), {"email": user.email, "password": password}, format="json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        from rest_framework_simplejwt.tokens import AccessToken
+
+        token = AccessToken(response.data["access"])
+        lifetime = datetime.fromtimestamp(token["exp"], tz=timezone.utc) - datetime.fromtimestamp(
+            token["iat"], tz=timezone.utc
+        )
+        self.assertEqual(lifetime, timedelta(hours=24))

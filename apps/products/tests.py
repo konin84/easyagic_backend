@@ -18,6 +18,27 @@ from .models import Product
 SEED_FILE = Path("apps/products/data/products.json")
 
 
+def seed_json(products, tmpdir, **options):
+    """
+    Seed from a bespoke catalogue file.
+
+    The shipped catalogue is now all-photographs, so exercising the generated-card
+    fallback needs an entry that deliberately has no image_url.
+    """
+    path = Path(tmpdir) / "custom.json"
+    path.write_text(json.dumps({"products": products}))
+    out, err = StringIO(), StringIO()
+    call_command("seed_products", file=str(path), stdout=out, stderr=err, **options)
+    return out.getvalue(), err.getvalue()
+
+
+NO_PHOTO_PRODUCT = {
+    "name": "Storage Probe Tool", "kind": "input", "category": "tool",
+    "description": "A catalogue entry with no photo, to exercise the fallback.",
+    "unit": "each", "image_url": "", "image_credit": "",
+}
+
+
 class SeedProductsTests(TestCase):
     def seed(self, payload=None, **options):
         out = StringIO()
@@ -34,7 +55,7 @@ class SeedProductsTests(TestCase):
         self.seed()
 
         total = Product.objects.count()
-        self.assertGreaterEqual(total, 40)
+        self.assertEqual(total, 38)
         self.assertTrue(Product.objects.filter(kind=Product.INPUT).exists())
         self.assertTrue(Product.objects.filter(kind=Product.PRODUCE).exists())
 
@@ -62,21 +83,21 @@ class SeedProductsTests(TestCase):
     def test_rerunning_is_idempotent_and_keeps_admin_edits(self):
         self.seed()
         count = Product.objects.count()
-        Product.objects.filter(name="Maize").update(description="Edited by ops")
+        Product.objects.filter(name="Cassava").update(description="Edited by ops")
 
         output = self.seed()
 
         self.assertEqual(Product.objects.count(), count)
-        self.assertEqual(Product.objects.get(name="Maize").description, "Edited by ops")
+        self.assertEqual(Product.objects.get(name="Cassava").description, "Edited by ops")
         self.assertIn("inchangé", output)
 
     def test_overwrite_restores_the_json_values(self):
         self.seed()
-        Product.objects.filter(name="Maize").update(description="Edited by ops")
+        Product.objects.filter(name="Cassava").update(description="Edited by ops")
 
         self.seed(overwrite=True)
 
-        self.assertNotEqual(Product.objects.get(name="Maize").description, "Edited by ops")
+        self.assertNotEqual(Product.objects.get(name="Cassava").description, "Edited by ops")
 
     # ------------------------------------------------------------- validation
 
@@ -116,7 +137,7 @@ class ProductAPITests(TestCase):
         response = self.client.get(reverse("product-list"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertGreaterEqual(response.data["count"], 40)
+        self.assertEqual(response.data["count"], 38)
         row = response.data["results"][0]
         self.assertEqual(
             set(row),
@@ -256,8 +277,8 @@ class ProductImageTests(TestCase):
     def test_generated_image_is_a_real_jpeg_of_the_right_size(self):
         from PIL import Image as PILImage
 
-        self.seed()
-        product = Product.objects.first()
+        seed_json([NO_PHOTO_PRODUCT], self.tmp.name)
+        product = Product.objects.get(name="Storage Probe Tool")
 
         with product.image.open("rb") as handle:
             img = PILImage.open(handle)
@@ -354,10 +375,16 @@ class ImagePrecedenceTests(TestCase):
         with_photo = Product.objects.exclude(image_url="").count()
         self.assertGreaterEqual(with_photo, 30)
 
-    def test_products_without_a_photo_fall_back_to_generated_art(self):
-        for product in Product.objects.filter(image_url=""):
-            self.assertTrue(product.image, f"{product.name} has neither photo nor card")
-            self.assertTrue(product.image_is_placeholder)
+    def test_the_shipped_catalogue_is_all_photographs(self):
+        self.assertEqual(Product.objects.filter(image_url="").count(), 0)
+
+    def test_a_catalogue_entry_without_a_photo_still_gets_a_card(self):
+        seed_json([NO_PHOTO_PRODUCT], self.tmp.name)
+
+        product = Product.objects.get(name="Storage Probe Tool")
+        self.assertTrue(product.image, "the placeholder safety net is gone")
+        self.assertTrue(product.image_is_placeholder)
+        self.assertIsNotNone(product.display_image)
 
     def test_no_generated_card_is_made_when_a_photo_url_exists(self):
         """Generating art for a product that already has a photo wastes storage."""
@@ -365,7 +392,8 @@ class ImagePrecedenceTests(TestCase):
             self.assertFalse(product.image, f"{product.name} has a redundant generated card")
 
     def test_photo_url_wins_over_a_generated_card(self):
-        product = Product.objects.filter(image_url="").first()
+        seed_json([NO_PHOTO_PRODUCT], self.tmp.name)
+        product = Product.objects.get(name="Storage Probe Tool")
         self.assertTrue(product.image_is_placeholder)
 
         product.image_url = "https://cdn.example.com/real.jpg"
@@ -478,3 +506,72 @@ class BackfillExistingCatalogueTests(TestCase):
         after = {p.slug: (p.image_url, p.image_credit) for p in Product.objects.all()}
         self.assertEqual(first, after)
         self.assertEqual(Product.objects.count(), len(first))
+
+
+class SeedingResilienceTests(TestCase):
+    """
+    Regression: a storage write outside the error guard raised on the 9th product
+    and aborted the whole command, so production kept photo URLs for ids 1-8 and
+    null for everything after. One product's failure must never cost the rest.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        media = override_settings(MEDIA_ROOT=self.tmp.name)
+        media.enable()
+        self.addCleanup(media.disable)
+
+        Product.objects.all().delete()
+        call_command("seed_products", stdout=StringIO(), no_images=True)
+        Product.objects.update(image_url="", image_credit="", image="")
+
+    @staticmethod
+    def broken_storage():
+        from django.db.models.fields.files import FieldFile
+
+        def boom(self, name, content, save=True):
+            raise OSError("No module named 'cloudinary_storage'")
+
+        return patch.object(FieldFile, "save", boom)
+
+    def seed(self):
+        out, err = StringIO(), StringIO()
+        call_command("seed_products", stdout=out, stderr=err)
+        return out.getvalue(), err.getvalue()
+
+    def seed_with_a_card_needed(self):
+        """Includes an entry needing a generated card, so storage is exercised."""
+        payload = json.loads(Path("apps/products/data/products.json").read_text())
+        return seed_json(payload["products"] + [NO_PHOTO_PRODUCT], self.tmp.name)
+
+    def test_broken_storage_does_not_stop_the_command(self):
+        with self.broken_storage():
+            self.seed()  # must not raise
+
+    def test_every_photo_url_lands_even_when_storage_is_broken(self):
+        with self.broken_storage():
+            self.seed()
+
+        self.assertGreaterEqual(
+            Product.objects.exclude(image_url="").count(), 30,
+            "a storage failure must not deny other products their photo URL",
+        )
+
+    def test_storage_failures_are_reported_not_swallowed(self):
+        with self.broken_storage():
+            _, err = self.seed_with_a_card_needed()
+
+        self.assertIn("IMAGE FAILED", err)
+
+    def test_products_after_the_failing_one_are_still_processed(self):
+        """The exact production symptom: everything past id 8 was left untouched."""
+        with self.broken_storage():
+            self.seed()
+
+        with_url = Product.objects.exclude(image_url="").order_by("id")
+        ids = list(with_url.values_list("id", flat=True))
+        self.assertTrue(
+            max(ids) - min(ids) > 20,
+            f"photo URLs stop early, seeding aborted again: {ids}",
+        )

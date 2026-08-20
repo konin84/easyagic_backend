@@ -1,5 +1,5 @@
 {
-  "_comment": "Seed catalogue for apps.products. Run: python manage.py seed_products. image_url points at freely-licensed Wikimedia Commons photos, each one visually checked; image_credit carries the attribution their licences require. Products with an empty image_url fall back to a generated placeholder card. Uploading a real photo in Django admin overrides both.",
+  "_comment": "Seed catalogue for apps.products. Run: python manage.py seed_products. Every product carries a freely-licensed Wikimedia Commons photo in image_url, each one visually checked, with the attribution its licence requires in image_credit. A product added without image_url still gets a generated placeholder card, so nothing ever renders blank — but the shipped catalogue is all photographs.",
   "products": [
     {
       "name": "Hybrid Maize Seed",
@@ -74,15 +74,6 @@
       "image_credit": "Suyash Dwivedi / Wikimedia Commons (CC BY-SA 4.0)"
     },
     {
-      "name": "Urea (46-0-0)",
-      "kind": "input",
-      "category": "fertilizer",
-      "unit": "50 kg bag",
-      "description": "High-nitrogen fertiliser used as a top dressing once the crop is established and growing. Apply just before rain or irrigation, and cover it, or much of the nitrogen escapes as gas.",
-      "image_url": "",
-      "image_credit": ""
-    },
-    {
       "name": "Organic Compost",
       "kind": "input",
       "category": "fertilizer",
@@ -90,33 +81,6 @@
       "description": "Decomposed plant and animal matter that feeds the soil rather than just the crop. It improves water retention in sandy soils and eases compaction in clay.",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/A_pile_of_organic_compost_heap_for_preserving_yams_at_bakin_dogo_market%2C_Kaduna_North_02.jpg/960px-A_pile_of_organic_compost_heap_for_preserving_yams_at_bakin_dogo_market%2C_Kaduna_North_02.jpg",
       "image_credit": "Samsule2 / Wikimedia Commons (CC BY-SA 4.0)"
-    },
-    {
-      "name": "Poultry Manure Pellets",
-      "kind": "input",
-      "category": "fertilizer",
-      "unit": "25 kg bag",
-      "description": "Composted and pelleted chicken manure, easier to store and spread evenly than raw manure. Rich in nitrogen and phosphorus, and it releases slowly over the season.",
-      "image_url": "",
-      "image_credit": ""
-    },
-    {
-      "name": "Agricultural Lime",
-      "kind": "input",
-      "category": "fertilizer",
-      "unit": "50 kg bag",
-      "description": "Raises the pH of acidic soils so that crops can take up nutrients already present. Worth applying where a soil analysis reports an acidic result.",
-      "image_url": "",
-      "image_credit": ""
-    },
-    {
-      "name": "Foliar Micronutrient Spray",
-      "kind": "input",
-      "category": "fertilizer",
-      "unit": "1 litre bottle",
-      "description": "Liquid zinc, boron and magnesium sprayed onto leaves for a fast correction of visible deficiency. A supplement to soil fertiliser, not a replacement for it.",
-      "image_url": "",
-      "image_credit": ""
     },
     {
       "name": "Neem-Based Bio-Pesticide",
@@ -128,15 +92,6 @@
       "image_credit": "Nkpelawuni / Wikimedia Commons (CC BY-SA 4.0)"
     },
     {
-      "name": "Broad-Spectrum Insecticide",
-      "kind": "input",
-      "category": "crop_protection",
-      "unit": "500 ml bottle",
-      "description": "Controls stem borers, armyworm and pod-sucking insects in cereals and legumes. Follow the label dose and observe the waiting period before harvest.",
-      "image_url": "",
-      "image_credit": ""
-    },
-    {
       "name": "Mancozeb Fungicide",
       "kind": "input",
       "category": "crop_protection",
@@ -144,15 +99,6 @@
       "description": "Protective fungicide against blight, leaf spot and downy mildew. It works by preventing infection, so spray before disease takes hold rather than after.",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/Equipment_for_Podosphaera_macularis.jpg/960px-Equipment_for_Podosphaera_macularis.jpg",
       "image_credit": "David Gent, USDA Agricultural Research Service, Bugwood.org / Wikimedia Commons (CC BY 3.0 us)"
-    },
-    {
-      "name": "Selective Herbicide",
-      "kind": "input",
-      "category": "crop_protection",
-      "unit": "1 litre bottle",
-      "description": "Kills weeds among a growing cereal crop without harming the crop itself. Check the label carefully: a herbicide safe in maize can destroy beans.",
-      "image_url": "",
-      "image_credit": ""
     },
     {
       "name": "Hand Hoe",
@@ -191,15 +137,6 @@
       "image_credit": "Willem van Aken, CSIRO / Wikimedia Commons (CC BY 3.0)"
     },
     {
-      "name": "Treadle Pump",
-      "kind": "input",
-      "category": "irrigation",
-      "unit": "each",
-      "description": "Foot-operated pump that lifts water from a shallow well or stream with no fuel cost. Suited to plots of roughly half a hectare.",
-      "image_url": "",
-      "image_credit": ""
-    },
-    {
       "name": "Spraying Protective Kit",
       "kind": "input",
       "category": "protective_equipment",
@@ -207,15 +144,6 @@
       "description": "Gloves, goggles, respirator mask and coverall for handling agrochemicals. Pesticide absorbed through skin and lungs causes lasting harm — wear the set every time.",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/US_Navy_050309-N-8796S-031_Chief_Hospital_Corpsman_Alberto_Redublo%2C_left%2C_helps_Hospital_Corpsman_2nd_Class_Richard_Cabatit_as_he_dons_his_personal_protective_equipment_for_spraying_pesticides.jpg/960px-thumbnail.jpg",
       "image_credit": "U.S. Navy photo by Photographer's Mate 2nd Class Timothy Smith / Wikimedia Commons (Public domain)"
-    },
-    {
-      "name": "Maize",
-      "kind": "produce",
-      "category": "grain",
-      "unit": "per 100 kg bag",
-      "description": "The staple cereal across much of the continent, eaten fresh, dried or milled into flour. Grows best in loam with steady moisture through tasselling.",
-      "image_url": "",
-      "image_credit": ""
     },
     {
       "name": "Rice",
@@ -270,24 +198,6 @@
       "description": "Fast-maturing tuber that produces on sandy soil with modest inputs. Orange-fleshed varieties carry vitamin A and command a premium in some markets.",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Sweet_potato_sprouting_slips.jpg/960px-Sweet_potato_sprouting_slips.jpg",
       "image_credit": "Geo Lightspeed7 / Wikimedia Commons (CC BY-SA 4.0)"
-    },
-    {
-      "name": "Irish Potato",
-      "kind": "produce",
-      "category": "tuber",
-      "unit": "per 50 kg bag",
-      "description": "Grown in cooler highland areas and around the harmattan season. Needs clean seed potatoes, as recycled tubers carry disease that cuts yields sharply.",
-      "image_url": "",
-      "image_credit": ""
-    },
-    {
-      "name": "Cowpea (Beans)",
-      "kind": "produce",
-      "category": "legume",
-      "unit": "per 100 kg bag",
-      "description": "A protein staple that also fixes nitrogen, leaving the field better than it found it. Store with care — weevils can ruin a bag within weeks.",
-      "image_url": "",
-      "image_credit": ""
     },
     {
       "name": "Groundnut",

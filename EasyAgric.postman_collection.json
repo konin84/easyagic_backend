@@ -921,7 +921,7 @@
 ,
     {
       "name": "Products",
-      "description": "Catalogue of agricultural products listed in the app — 48 entries seeded from `apps/products/data/products.json` via `manage.py seed_products`.\n\nTwo kinds share one catalogue: `input` (seeds, fertiliser, crop protection, tools, irrigation, protective gear) and `produce` (grains, tubers, legumes, vegetables, fruits, cash crops). Images ship empty — upload a file in Django admin or set `image_url`.",
+      "description": "Catalogue of agricultural products listed in the app — 38 entries seeded from `apps/products/data/products.json` via `manage.py seed_products`.\n\nTwo kinds share one catalogue: `input` (seeds, fertiliser, crop protection, tools, irrigation, protective gear) and `produce` (grains, tubers, legumes, vegetables, fruits, cash crops). Images ship empty — upload a file in Django admin or set `image_url`.",
       "item": [
         {
           "name": "List Products",

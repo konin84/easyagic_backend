@@ -209,9 +209,14 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "config.exceptions.custom_exception_handler",
 }
 
+# Access tokens are not revocable — only refresh tokens can be blacklisted — so a
+# longer lifetime is a real trade-off, see JWT_ACCESS_HOURS in .env.example.
+JWT_ACCESS_HOURS = config("JWT_ACCESS_HOURS", default=24, cast=int)
+JWT_REFRESH_DAYS = config("JWT_REFRESH_DAYS", default=7, cast=int)
+
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=JWT_ACCESS_HOURS),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=JWT_REFRESH_DAYS),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),

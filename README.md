@@ -76,7 +76,7 @@ Une ligne déjà présente n'est **jamais écrasée** — les tarifs modifiés d
 
 ### 8. Catalogue de produits agricoles (`/products/`)
 
-48 produits amorcés en base, répartis en deux familles :
+38 produits amorcés en base, répartis en deux familles :
 
 - **Intrants** (`kind=input`) — semences, engrais, protection des cultures, outils, irrigation, équipement de protection
 - **Productions** (`kind=produce`) — céréales, tubercules, légumineuses, légumes, fruits, cultures de rente
@@ -87,7 +87,7 @@ Chaque fiche porte un nom, une catégorie, une **description pratique** de deux 
 - `GET /api/products/categories/` — catégories groupées par famille, avec le nombre de produits (pour les filtres)
 - `GET /api/products/<slug>/` — fiche produit
 
-**Images** : 38 produits sur 48 portent une **vraie photo sous licence libre** (Wikimedia Commons), chacune vérifiée visuellement et par requête HTTP. Les 10 restants (dont aucune photo correcte n'a été trouvée) affichent une **carte générée** colorée par catégorie. Aucune fiche n'est donc jamais vide.
+**Images** : les 38 produits portent tous une **vraie photo sous licence libre** (Wikimedia Commons), chacune vérifiée visuellement et par requête HTTP. Les 10 produits pour lesquels aucune photo correcte n'a été trouvée ont été **retirés du catalogue** (migration `0003`). Un produit ajouté au JSON sans `image_url` reçoit malgré tout une carte générée : aucune fiche ne peut donc s'afficher vide.
 
 Ordre de priorité du champ `image` : photo téléversée dans l'admin > photo sous licence (`image_url`) > carte générée.
 
@@ -131,7 +131,7 @@ Garde-fous : un admin ne peut pas supprimer ni désactiver **son propre compte**
 | IA / Vision     | Google Gemini 3.6 Flash        |
 | Météo           | Open-Meteo (gratuit)           |
 | Emails          | Django email + Google Cloud Translation |
-| Auth            | JWT + OTP par email            |
+| Auth            | JWT (24 h) + OTP par email     |
 | Serveur WSGI    | Gunicorn                       |
 
 ---

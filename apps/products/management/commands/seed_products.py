@@ -68,7 +68,7 @@ class Command(BaseCommand):
         valid_kinds = {k for k, _ in Product.KIND_CHOICES}
         valid_categories = {c for c, _ in Product.CATEGORY_CHOICES}
 
-        created = updated = skipped = imaged = backfilled = 0
+        created = updated = skipped = imaged = backfilled = failed = 0
         for index, row in enumerate(rows):
             name = (row.get("name") or "").strip()
             if not name:
@@ -89,30 +89,36 @@ class Command(BaseCommand):
             values = {field: row.get(field, "") or "" for field in self.FIELDS}
             values["kind"], values["category"] = kind, category
 
-            existing = Product.objects.filter(slug=slugify(name)[:140]).first()
-            if existing is None:
-                product = Product.objects.create(name=name, is_active=True, **values)
-                if self._attach_image(product, options):
+            # Validation above raises: bad JSON should fail the run loudly. From
+            # here on, one product's failure must not deny the other 47 theirs.
+            try:
+                existing = Product.objects.filter(slug=slugify(name)[:140]).first()
+                if existing is None:
+                    product = Product.objects.create(name=name, is_active=True, **values)
+                    if self._attach_image(product, options):
+                        imaged += 1
+                    created += 1
+                    continue
+
+                # Fill in fields the row never had, then artwork — neither touches
+                # anything already set, so both are safe without --overwrite
+                if self._backfill(existing, values):
+                    backfilled += 1
+                if self._attach_image(existing, options):
                     imaged += 1
-                created += 1
-                continue
 
-            # Fill in fields the row never had, then artwork — neither touches
-            # anything already set, so both are safe without --overwrite
-            if self._backfill(existing, values):
-                backfilled += 1
-            if self._attach_image(existing, options):
-                imaged += 1
+                if not options["overwrite"]:
+                    skipped += 1
+                    continue
 
-            if not options["overwrite"]:
-                skipped += 1
-                continue
-
-            for field, value in values.items():
-                setattr(existing, field, value)
-            existing.name = name
-            existing.save()
-            updated += 1
+                for field, value in values.items():
+                    setattr(existing, field, value)
+                existing.name = name
+                existing.save()
+                updated += 1
+            except Exception as exc:
+                failed += 1
+                self.stderr.write(f"  ! FAILED {name} — {type(exc).__name__}: {exc}")
 
         self.stdout.write(self.style.SUCCESS(
             f"Catalogue amorcé — {created} créé(s), {updated} mis à jour, {skipped} inchangé(s), "
@@ -120,6 +126,10 @@ class Command(BaseCommand):
         ))
         if skipped and not options["overwrite"]:
             self.stdout.write("Utiliser --overwrite pour forcer les valeurs du JSON.")
+        if failed:
+            self.stderr.write(
+                self.style.ERROR(f"{failed} produit(s) en échec — voir les erreurs ci-dessus.")
+            )
 
     def _attach_image(self, product, options):
         """
@@ -145,15 +155,16 @@ class Command(BaseCommand):
             content = build_placeholder(
                 product.name, product.category, product.get_category_display()
             )
+            # Inside the guard on purpose: writing to storage is the step that
+            # actually fails in production, and an escaping error here once
+            # aborted the whole catalogue partway through.
+            product.image.save(f"generated/{product.slug}.jpg", content, save=True)
         except Exception as exc:
-            # Loud on purpose: a silently swallowed storage error once made a
-            # broken production deploy look like a successful one.
             self.stderr.write(
                 f"  ! IMAGE FAILED for {product.name} — {type(exc).__name__}: {exc}"
             )
             return False
 
-        product.image.save(f"generated/{product.slug}.jpg", content, save=True)
         return True
 
     def _backfill(self, product, values):
