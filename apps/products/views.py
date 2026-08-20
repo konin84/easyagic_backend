@@ -108,3 +108,91 @@ class ProductCategoryListView(APIView):
             }
             for kind, categories in Product.CATEGORIES_BY_KIND.items()
         ])
+
+
+class ProductsByCategoryView(APIView):
+    """
+    GET /api/products/by-category/ — the whole catalogue, grouped.
+
+    Returns each kind with its categories, and each category with its products,
+    which is the shape a sectioned catalogue screen needs. Saves the app making
+    one request per category.
+
+    ?kind=input|produce            restrict to one family
+    ?limit_per_category=4          cap products per group, for a home screen
+                                   showing a few per section with "see all"
+    ?include_empty=true            keep categories that have no products
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    MAX_PER_CATEGORY = 100
+
+    def get(self, request):
+        products = Product.objects.filter(is_active=True)
+
+        kind = request.query_params.get("kind")
+        if kind:
+            if kind not in dict(Product.KIND_CHOICES):
+                return Response(
+                    {"error": f"Unknown kind '{kind}'. Use input or produce."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            products = products.filter(kind=kind)
+
+        raw_limit = request.query_params.get("limit_per_category")
+        limit = None
+        if raw_limit is not None:
+            try:
+                limit = int(raw_limit)
+            except ValueError:
+                return Response(
+                    {"error": "limit_per_category must be a whole number."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            limit = max(1, min(limit, self.MAX_PER_CATEGORY))
+
+        include_empty = request.query_params.get("include_empty", "").lower() in ("1", "true", "yes")
+
+        products = list(products)
+        context = _context(request, products)
+
+        grouped = {}
+        for product in products:
+            grouped.setdefault(product.category, []).append(product)
+
+        labels = context["labels"]
+        category_names = dict(Product.CATEGORY_CHOICES)
+        kind_names = dict(Product.KIND_CHOICES)
+
+        payload = []
+        for kind_code, category_codes in Product.CATEGORIES_BY_KIND.items():
+            if kind and kind_code != kind:
+                continue
+
+            categories = []
+            for code in category_codes:
+                rows = grouped.get(code, [])
+                if not rows and not include_empty:
+                    continue
+                english = category_names[code]
+                categories.append({
+                    "code": code,
+                    "name": labels.get(english, english),
+                    "count": len(rows),
+                    "products": ProductSerializer(
+                        rows[:limit] if limit else rows, many=True, context=context
+                    ).data,
+                })
+
+            if not categories and not include_empty:
+                continue
+
+            payload.append({
+                "kind": kind_code,
+                "kind_display": labels.get(kind_names[kind_code], kind_names[kind_code]),
+                "count": sum(c["count"] for c in categories),
+                "categories": categories,
+            })
+
+        return Response(payload)

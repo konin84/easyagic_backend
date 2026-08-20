@@ -752,3 +752,132 @@ class ProductTranslationTests(TestCase):
 
         self.assertEqual(response.data["description"], "New English wording.")
         self.assertEqual(response.data["language"], "en")
+
+
+class ProductsByCategoryTests(TestCase):
+    """The grouped catalogue view, so the app needs one request not twelve."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_products", stdout=StringIO(), no_images=True)
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.client = APIClient()
+        self.farmer = User.objects.create_user(
+            username="g@example.com", email="g@example.com", password="x" * 12, role=User.FARMER,
+        )
+        self.client.force_authenticate(user=self.farmer)
+
+    def get(self, **params):
+        return self.client.get(reverse("products-by-category"), params)
+
+    def test_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.get().status_code, 401)
+
+    def test_groups_every_product_under_its_category(self):
+        response = self.get()
+
+        seen = set()
+        for group in response.data:
+            for category in group["categories"]:
+                for product in category["products"]:
+                    self.assertEqual(product["category"], category["code"])
+                    seen.add(product["id"])
+
+        self.assertEqual(seen, set(Product.objects.values_list("id", flat=True)))
+
+    def test_counts_match_the_products_returned(self):
+        for group in self.get().data:
+            self.assertEqual(group["count"], sum(c["count"] for c in group["categories"]))
+            for category in group["categories"]:
+                self.assertEqual(category["count"], len(category["products"]))
+
+    def test_both_kinds_are_present(self):
+        kinds = {g["kind"] for g in self.get().data}
+        self.assertEqual(kinds, {Product.INPUT, Product.PRODUCE})
+
+    def test_categories_belong_to_their_kind(self):
+        for group in self.get().data:
+            allowed = Product.CATEGORIES_BY_KIND[group["kind"]]
+            for category in group["categories"]:
+                self.assertIn(category["code"], allowed)
+
+    def test_filter_by_kind(self):
+        response = self.get(kind=Product.PRODUCE)
+
+        self.assertEqual([g["kind"] for g in response.data], [Product.PRODUCE])
+
+    def test_unknown_kind_is_rejected(self):
+        response = self.get(kind="livestock")
+        self.assertEqual(response.status_code, 400)
+
+    def test_limit_per_category_caps_each_group(self):
+        response = self.get(limit_per_category=2)
+
+        for group in response.data:
+            for category in group["categories"]:
+                self.assertLessEqual(len(category["products"]), 2)
+                # count still reports the true total, so "see all" knows there is more
+                self.assertEqual(category["count"], Product.objects.filter(category=category["code"]).count())
+
+    def test_bad_limit_is_rejected(self):
+        self.assertEqual(self.get(limit_per_category="lots").status_code, 400)
+
+    def test_empty_categories_are_hidden_by_default(self):
+        Product.objects.filter(category=Product.IRRIGATION).delete()
+
+        codes = [c["code"] for g in self.get().data for c in g["categories"]]
+        self.assertNotIn(Product.IRRIGATION, codes)
+
+    def test_empty_categories_can_be_included(self):
+        Product.objects.filter(category=Product.IRRIGATION).delete()
+
+        response = self.get(include_empty="true")
+        codes = [c["code"] for g in response.data for c in g["categories"]]
+        self.assertIn(Product.IRRIGATION, codes)
+
+    def test_inactive_products_are_excluded(self):
+        product = Product.objects.first()
+        product.is_active = False
+        product.save(update_fields=["is_active"])
+
+        ids = {p["id"] for g in self.get().data for c in g["categories"] for p in c["products"]}
+        self.assertNotIn(product.id, ids)
+
+    def test_products_carry_the_full_payload(self):
+        category = self.get().data[0]["categories"][0]
+        product = category["products"][0]
+
+        self.assertEqual(
+            set(product),
+            {"id", "slug", "name", "kind", "kind_display", "category",
+             "category_display", "description", "unit", "image", "image_credit", "language"},
+        )
+        self.assertTrue(product["image"], "grouped view must carry images too")
+
+    def test_labels_and_products_are_translated(self):
+        self.farmer.language = "fr"
+        self.farmer.save(update_fields=["language"])
+        self.client.force_authenticate(user=User.objects.get(pk=self.farmer.pk))
+
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate()):
+            response = self.get()
+
+        group = response.data[0]
+        self.assertTrue(group["kind_display"].startswith("[fr] "))
+        self.assertTrue(group["categories"][0]["name"].startswith("[fr] "))
+        self.assertTrue(group["categories"][0]["products"][0]["name"].startswith("[fr] "))
+
+    def test_whole_catalogue_is_translated_in_one_pass(self):
+        """Grouping must not re-translate per category."""
+        self.farmer.language = "fr"
+        self.farmer.save(update_fields=["language"])
+        self.client.force_authenticate(user=User.objects.get(pk=self.farmer.pk))
+
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate()) as api:
+            self.get()
+
+        self.assertLessEqual(api.call_count, 3, f"translated in {api.call_count} calls, expected a single pass")
