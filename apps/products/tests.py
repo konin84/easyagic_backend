@@ -1196,3 +1196,95 @@ class CategoryFilterByNameTests(TestCase):
         self.assertIsNone(resolve_category("nope", labels))
         self.assertIsNone(resolve_category("", labels))
         self.assertIsNone(resolve_category(None, labels))
+
+
+class ProductDetailLookupTests(TestCase):
+    """
+    Regression: the URL used the `slug` converter, which rejects spaces and
+    punctuation, so only single-word lowercase names like `cocoa` resolved.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_products", stdout=StringIO(), no_images=True)
+
+    def setUp(self):
+        self.client = APIClient()
+        farmer = User.objects.create_user(
+            username="dl@example.com", email="dl@example.com", password="x" * 12, role=User.FARMER,
+        )
+        self.client.force_authenticate(user=farmer)
+
+    def fetch(self, identifier):
+        import urllib.parse
+        return self.client.get("/api/products/" + urllib.parse.quote(str(identifier)) + "/")
+
+    def test_every_slug_resolves(self):
+        failures = [
+            p.slug for p in Product.objects.all() if self.fetch(p.slug).status_code != 200
+        ]
+        self.assertEqual(failures, [])
+
+    def test_every_product_name_resolves(self):
+        """A name with a slash cannot live in a URL path; everything else must work."""
+        failures = []
+        for product in Product.objects.all():
+            if "/" in product.name:
+                continue
+            if self.fetch(product.name).status_code != 200:
+                failures.append(product.name)
+
+        self.assertEqual(failures, [], "these names 404 despite being valid products")
+
+    def test_every_product_id_resolves(self):
+        failures = [
+            p.id for p in Product.objects.all() if self.fetch(p.id).status_code != 200
+        ]
+        self.assertEqual(failures, [])
+
+    def test_case_is_ignored(self):
+        for value in ("Cocoa", "COCOA", "cOcOa"):
+            with self.subTest(value=value):
+                self.assertEqual(self.fetch(value).data["name"], "Cocoa")
+
+    def test_name_with_spaces_resolves(self):
+        self.assertEqual(self.fetch("Hand Hoe").data["slug"], "hand-hoe")
+
+    def test_name_with_punctuation_resolves(self):
+        self.assertEqual(
+            self.fetch("Knapsack Sprayer (16 L)").data["slug"], "knapsack-sprayer-16-l"
+        )
+
+    def test_name_with_digits_resolves(self):
+        self.assertEqual(
+            self.fetch("NPK 15-15-15 Fertiliser").data["slug"], "npk-15-15-15-fertiliser"
+        )
+
+    def test_slug_takes_priority_over_a_colliding_name(self):
+        Product.objects.create(
+            name="hand-hoe", kind=Product.INPUT, category=Product.TOOL,
+            description="A decoy whose name equals another product's slug.",
+            unit="each", slug="decoy-hand-hoe",
+        )
+        self.assertEqual(self.fetch("hand-hoe").data["slug"], "hand-hoe")
+
+    def test_inactive_product_is_not_found_by_any_identifier(self):
+        product = Product.objects.get(slug="cocoa")
+        product.is_active = False
+        product.save(update_fields=["is_active"])
+
+        for value in ("cocoa", "Cocoa", product.id):
+            with self.subTest(value=value):
+                self.assertEqual(self.fetch(value).status_code, 404)
+
+    def test_unknown_identifier_returns_a_helpful_404(self):
+        response = self.fetch("nonsense")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("nonsense", response.data["error"])
+        self.assertIn("slug", response.data["hint"])
+
+    def test_reserved_paths_are_not_swallowed_by_the_detail_route(self):
+        """`categories` and `by-category` must not be read as product names."""
+        self.assertEqual(self.client.get(reverse("product-categories")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("products-by-category")).status_code, 200)

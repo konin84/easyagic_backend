@@ -98,7 +98,7 @@ Les traductions sont **mises en cache sur la fiche produit** : l'API Google n'es
 
   Le tri porte toujours sur le **nom traduit** et ignore les accents (Équipement se classe à E). `?group_by=` fonctionne aussi sur `/api/products/categories/`, avec les mêmes valeurs — les puces de filtre et la liste par sections restent donc dans le même ordre.
 - `GET /api/products/categories/` — catégories groupées par famille, avec le nombre de produits (pour les filtres, sans les produits)
-- `GET /api/products/<slug>/` — fiche produit
+- `GET /api/products/<identifiant>/` — fiche produit. L'identifiant accepte le **slug** (`hand-hoe`), le **nom** dans n'importe quelle casse (`Hand Hoe`) ou l'**id** numérique. Seule limite : un nom contenant une barre oblique (`Cutlass / Machete`) ne peut pas figurer dans une URL — utiliser son slug ou son id.
 
 **Images** : les 38 produits portent tous une **vraie photo sous licence libre** (Wikimedia Commons), chacune vérifiée visuellement et par requête HTTP. Les 10 produits pour lesquels aucune photo correcte n'a été trouvée ont été **retirés du catalogue** (migration `0003`). Un produit ajouté au JSON sans `image_url` reçoit malgré tout une carte générée : aucune fiche ne peut donc s'afficher vide.
 

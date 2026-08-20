@@ -979,6 +979,43 @@
           }
         },
         {
+          "name": "Products in One Category",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/products/?category=Cash Crops",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "Cash Crops",
+                  "description": "The category name exactly as /categories/ returned it, or its code (cash_crop). Try: Seeds & Planting Material, Grains & Cereals, Vegetables, Cash Crops."
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Page size, max 200",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Every product in one category — what you want when the farmer taps a category chip.\n\nThis is the flat List Products endpoint with the category filter already switched on, so you can just hit Send. Paste in whatever `name` the /categories/ response gave you; the code (cash_crop) works too, and case and spacing are ignored.\n\nNote that Products by Category is a different thing: it returns the WHOLE catalogue grouped into sections, and has no category filter. Use that one for a sectioned screen, this one for a single-category screen."
+          }
+        },
+        {
           "name": "List Categories",
           "request": {
             "method": "GET",
@@ -1072,8 +1109,8 @@
                 "value": "Bearer {{access_token}}"
               }
             ],
-            "url": "{{base_url}}/api/products/cocoa/",
-            "description": "Single product by slug (slugs are generated from the name, e.g. `cocoa`, `hybrid-maize-seed`, `knapsack-sprayer-16-l`). 404 if the slug is unknown or the product is inactive."
+            "url": "{{base_url}}/api/products/hand-hoe/",
+            "description": "A single product. The path segment accepts the slug (`hand-hoe`), the product name in any casing (`Hand Hoe`, `COCOA`), or the numeric id — so you can paste whatever the list gave you.\n\nOne exception: a name containing a slash, like \"Cutlass / Machete\", cannot be written in a URL path. Use its slug (`cutlass-machete`) or its id.\n\n404 if nothing matches or the product is inactive; the response names what it tried."
           }
         }
       ]

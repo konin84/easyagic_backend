@@ -1,6 +1,7 @@
 import unicodedata
 
 from django.db import models
+from django.utils.text import slugify
 
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -146,13 +147,54 @@ class ProductListView(APIView):
 
 
 class ProductDetailView(APIView):
+    """
+    GET /api/products/<identifier>/
+
+    `identifier` may be the slug (`hand-hoe`), the product name in any casing
+    (`Hand Hoe`), or the numeric id. Anything that slugifies to a known product
+    resolves, so an app holding only the display name does not have to build the
+    slug itself.
+
+    One limit worth knowing: a name containing a slash — "Cutlass / Machete" —
+    cannot be expressed in a URL path. Use its slug or id.
+    """
+
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, slug):
-        product = Product.objects.filter(slug=slug, is_active=True).first()
+    def get(self, request, identifier):
+        product = self._lookup(identifier)
         if product is None:
-            return Response({"error": "Product not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {
+                    "error": f"No product matches '{identifier}'.",
+                    "hint": "Use the product's slug (e.g. hand-hoe), its name, or its id. "
+                            "The slug is in the `slug` field of the product list.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
         return Response(ProductSerializer(product, context=_context(request, [product])).data)
+
+    @staticmethod
+    def _lookup(identifier):
+        active = Product.objects.filter(is_active=True)
+
+        product = active.filter(slug=identifier).first()
+        if product:
+            return product
+
+        # "Hand Hoe", "COCOA" and "Knapsack Sprayer (16 L)" all slugify to a real slug
+        slugified = slugify(identifier)
+        if slugified:
+            product = active.filter(slug=slugified).first()
+            if product:
+                return product
+
+        if identifier.isdigit():
+            product = active.filter(pk=int(identifier)).first()
+            if product:
+                return product
+
+        return active.filter(name__iexact=identifier.strip()).first()
 
 
 class ProductCategoryListView(APIView):
