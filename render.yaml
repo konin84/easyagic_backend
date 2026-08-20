@@ -40,6 +40,8 @@ services:
         sync: false
       - key: GOOGLE_TRANSLATE_API_KEY
         sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
       - key: PAYMENT_CONFIG_JSON
         sync: false
       - key: DEFAULT_CURRENCY

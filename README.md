@@ -10,7 +10,7 @@ EasyAgric est une API REST construite avec **Django / Django REST Framework** et
 
 Le cœur du projet. Le fermier envoie une photo de son sol et ses coordonnées GPS. L'API :
 
-- Analyse l'image avec **Google Gemini 2.0 Flash** pour identifier le type de sol, la texture, l'humidité, la fertilité, les problèmes visibles, etc.
+- Analyse l'image avec **Google Gemini 3.6 Flash** (configurable via `GEMINI_MODEL`) pour identifier le type de sol, la texture, l'humidité, la fertilité, les problèmes visibles, etc.
 - Récupère en parallèle les données météo et pédologiques via **Open-Meteo** (API gratuite)
 - Retourne des recommandations de cultures adaptées au sol et à la température actuelle
 - Sauvegarde l'analyse, envoie un email au fermier et une notification push sur son appareil — le tout en arrière-plan sans bloquer la réponse
@@ -102,7 +102,7 @@ Garde-fous : un admin ne peut pas supprimer ni désactiver **son propre compte**
 |-----------------|-------------------------------|
 | Framework       | Django + DRF                  |
 | Base de données | Neon PostgreSQL                |
-| IA / Vision     | Google Gemini 2.0 Flash        |
+| IA / Vision     | Google Gemini 3.6 Flash        |
 | Météo           | Open-Meteo (gratuit)           |
 | Emails          | Django email + Google Cloud Translation |
 | Auth            | JWT + OTP par email            |

@@ -183,6 +183,10 @@ DEFAULT_CURRENCY = config("DEFAULT_CURRENCY", default="XOF")
 
 # Google Gemini
 GEMINI_API_KEY = config("GEMINI_API_KEY")
+# Configurable so a model retirement is an env change, not a redeploy.
+# `gemini-flash-latest` tracks the newest Flash automatically, at the cost of
+# the model changing under you without warning.
+GEMINI_MODEL = config("GEMINI_MODEL", default="gemini-3.6-flash")
 
 # Google Cloud Translation API (for multilingual emails)
 GOOGLE_TRANSLATE_API_KEY = config("GOOGLE_TRANSLATE_API_KEY", default="")

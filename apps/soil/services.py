@@ -60,7 +60,7 @@ def analyze_soil_image(image_bytes: bytes, language: str = "en") -> dict:
     image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
 
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model=settings.GEMINI_MODEL,
         contents=[image_part, prompt],
     )
 
