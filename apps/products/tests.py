@@ -142,7 +142,8 @@ class ProductAPITests(TestCase):
         self.assertEqual(
             set(row),
             {"id", "slug", "name", "kind", "kind_display", "category",
-             "category_display", "description", "unit", "image", "image_credit"},
+             "category_display", "description", "unit", "image", "image_credit",
+             "language"},
         )
 
     def test_filter_by_kind(self):
@@ -575,3 +576,179 @@ class SeedingResilienceTests(TestCase):
             max(ids) - min(ids) > 20,
             f"photo URLs stop early, seeding aborted again: {ids}",
         )
+
+
+def fake_translate(prefix="[fr] "):
+    """Stand-in for Google Translate: returns a NEW list, as a real call would."""
+    def _translate(texts, language):
+        return [f"{prefix}{t}" for t in texts]
+    return _translate
+
+
+class ProductTranslationTests(TestCase):
+    """Catalogue text in the farmer's own language."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_products", stdout=StringIO(), no_images=True)
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.client = APIClient()
+
+    def farmer(self, language):
+        user = User.objects.create_user(
+            username=f"{language}@example.com", email=f"{language}@example.com",
+            password="x" * 12, role=User.FARMER, language=language,
+        )
+        self.client.force_authenticate(user=user)
+        return user
+
+    def list_products(self):
+        return self.client.get(reverse("product-list"), {"limit": 5})
+
+    def test_english_user_gets_untranslated_text_and_no_api_call(self):
+        self.farmer("en")
+        with patch("apps.products.translation.translate_batch") as api:
+            response = self.list_products()
+
+        api.assert_not_called()
+        self.assertEqual(response.data["results"][0]["language"], "en")
+
+    def test_french_user_gets_translated_fields(self):
+        self.farmer("fr")
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate()):
+            response = self.list_products()
+
+        row = response.data["results"][0]
+        for field in ("name", "description", "unit", "kind_display", "category_display"):
+            self.assertTrue(row[field].startswith("[fr] "), f"{field} was not translated")
+        self.assertEqual(row["language"], "fr")
+
+    def test_untranslated_fields_are_left_alone(self):
+        """slug, kind and category are machine keys — translating them breaks filters."""
+        self.farmer("fr")
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate()):
+            row = self.list_products().data["results"][0]
+
+        self.assertFalse(row["slug"].startswith("[fr]"))
+        self.assertIn(row["kind"], (Product.INPUT, Product.PRODUCE))
+        self.assertIn(row["category"], dict(Product.CATEGORY_CHOICES))
+
+    def test_translation_is_cached_so_the_api_is_not_hit_twice(self):
+        self.farmer("fr")
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate()) as api:
+            self.list_products()
+            first = api.call_count
+            self.list_products()
+            second = api.call_count
+
+        self.assertGreater(first, 0)
+        self.assertEqual(second, first, "second request re-translated instead of using the cache")
+
+    def test_translations_persist_on_the_row(self):
+        self.farmer("fr")
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate()):
+            self.list_products()
+
+        product = Product.objects.exclude(translations={}).first()
+        self.assertIn("fr", product.translations)
+        self.assertIn("name", product.translations["fr"])
+
+    def test_a_failed_translation_is_not_cached_as_english(self):
+        """A transient outage must not permanently pin the catalogue to English."""
+        self.farmer("fr")
+
+        # translate_batch returns its input unchanged when it fails
+        with patch("apps.products.translation.translate_batch", side_effect=lambda texts, lang: texts):
+            response = self.list_products()
+
+        self.assertEqual(response.data["results"][0]["language"], "en")
+        self.assertEqual(Product.objects.exclude(translations={}).count(), 0)
+
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate()):
+            response = self.list_products()
+        self.assertEqual(response.data["results"][0]["language"], "fr")
+
+    def test_detail_endpoint_is_translated_too(self):
+        self.farmer("fr")
+        product = Product.objects.first()
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate()):
+            response = self.client.get(reverse("product-detail", args=[product.slug]))
+
+        self.assertTrue(response.data["name"].startswith("[fr] "))
+
+    def test_category_chips_are_translated(self):
+        self.farmer("fr")
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate()):
+            response = self.client.get(reverse("product-categories"))
+
+        group = response.data[0]
+        self.assertTrue(group["kind_display"].startswith("[fr] "))
+        self.assertTrue(group["categories"][0]["name"].startswith("[fr] "))
+        self.assertIn(group["kind"], (Product.INPUT, Product.PRODUCE))
+
+    def test_unsupported_language_falls_back_to_english(self):
+        """Wolof, Baoulé and Dioula have no Google Translate equivalent."""
+        self.farmer("wo")
+        with patch("apps.products.translation.translate_batch", side_effect=lambda texts, lang: texts):
+            response = self.list_products()
+
+        self.assertEqual(response.data["results"][0]["language"], "en")
+        self.assertTrue(response.data["results"][0]["name"])
+
+    def test_two_languages_coexist_on_the_same_product(self):
+        for language in ("fr", "es"):
+            self.farmer(language)
+            with patch("apps.products.translation.translate_batch",
+                       side_effect=fake_translate(f"[{language}] ")):
+                self.list_products()
+
+        product = Product.objects.exclude(translations={}).first()
+        self.assertEqual(set(product.translations), {"fr", "es"})
+
+    def test_prewarm_command_translates_languages_in_use(self):
+        User.objects.create_user(
+            username="sw@example.com", email="sw@example.com",
+            password="x" * 12, role=User.FARMER, language="sw",
+        )
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate("[sw] ")):
+            call_command("translate_products", stdout=StringIO())
+
+        self.assertTrue(all("sw" in (p.translations or {}) for p in Product.objects.all()))
+
+    def test_editing_the_english_text_invalidates_its_translation(self):
+        """Otherwise a reworded description would show old wording forever."""
+        self.farmer("fr")
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate()):
+            self.list_products()
+
+        product = Product.objects.first()
+        self.assertIn("fr", product.translations)
+
+        product.description = "Completely rewritten by ops."
+        product.save(update_fields=["description"])
+
+        with patch("apps.products.translation.translate_batch",
+                   side_effect=fake_translate("[fr-v2] ")) as api:
+            response = self.client.get(reverse("product-detail", args=[product.slug]))
+            self.assertGreater(api.call_count, 0, "stale translation was served")
+
+        self.assertTrue(response.data["description"].startswith("[fr-v2] "))
+        self.assertIn("Completely rewritten", response.data["description"])
+
+    def test_stale_translation_is_never_served_even_if_retranslation_fails(self):
+        self.farmer("fr")
+        with patch("apps.products.translation.translate_batch", side_effect=fake_translate()):
+            self.list_products()
+
+        product = Product.objects.first()
+        product.description = "New English wording."
+        product.save(update_fields=["description"])
+
+        with patch("apps.products.translation.translate_batch", side_effect=lambda t, l: t):
+            response = self.client.get(reverse("product-detail", args=[product.slug]))
+
+        self.assertEqual(response.data["description"], "New English wording.")
+        self.assertEqual(response.data["language"], "en")

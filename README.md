@@ -84,6 +84,10 @@ Une ligne déjà présente n'est **jamais écrasée** — les tarifs modifiés d
 Chaque fiche porte un nom, une catégorie, une **description pratique** de deux phrases, une unité de vente et une image.
 
 - `GET /api/products/` — catalogue paginé (`?kind=`, `?category=`, `?search=`, `?limit=`, `?offset=`)
+
+**Traduction** : `name`, `description`, `unit`, `kind_display` et `category_display` sont renvoyés **dans la langue du fermier connecté**. Les champs `slug`, `kind` et `category` restent en anglais : ce sont des clés de filtrage, à ne jamais afficher. Le champ `language` indique la langue réelle de la réponse (`en` si la traduction n'est pas disponible — Wolof, Baoulé et Dioula ne sont pas pris en charge par Google Translate).
+
+Les traductions sont **mises en cache sur la fiche produit** : l'API Google n'est appelée qu'une fois par langue, pas à chaque requête. Modifier un texte anglais dans l'admin invalide automatiquement ses traductions. Pour éviter que le premier fermier d'une langue n'attende l'appel API : `python manage.py translate_products` (par défaut, uniquement les langues réellement utilisées par des comptes existants ; `--all` pour les 17).
 - `GET /api/products/categories/` — catégories groupées par famille, avec le nombre de produits (pour les filtres)
 - `GET /api/products/<slug>/` — fiche produit
 

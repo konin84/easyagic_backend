@@ -975,7 +975,7 @@
                 }
               ]
             },
-            "description": "Returns {count, limit, offset, results}. Each row: id, slug, name, kind, kind_display, category, category_display, description, unit, image, image_credit.\n\n`image` is a single resolved URL, picked in order: a real photo uploaded in Django admin, then the freely-licensed photo URL, then a generated placeholder card. It is never null.\n\n`image_credit` carries the attribution the photo's licence requires (mostly CC BY-SA) — display it wherever the image is shown. It is empty for generated cards. Only active products are listed."
+            "description": "Returns {count, limit, offset, results}. Each row: id, slug, name, kind, kind_display, category, category_display, description, unit, image, image_credit, language.\n\n**Localised**: name, description, unit, kind_display and category_display come back in the logged-in user's language (from their profile `language`). `slug`, `kind` and `category` stay in English — they are machine keys you filter on, so never display them. `language` tells you which language the payload is actually in; it returns \"en\" when a translation is unavailable, e.g. Wolof, Baoulé and Dioula which Google Translate does not support.\n\n`image` is a single resolved URL, picked in order: a real photo uploaded in Django admin, then the freely-licensed photo URL, then a generated placeholder card. It is never null.\n\n`image_credit` carries the attribution the photo's licence requires (mostly CC BY-SA) — display it wherever the image is shown. It is empty for generated cards. Only active products are listed."
           }
         },
         {
@@ -989,7 +989,7 @@
               }
             ],
             "url": "{{base_url}}/api/products/categories/",
-            "description": "Drives the filter chips. Returns the categories grouped under each kind, each with a live product count — so the app never shows a filter that would come back empty."
+            "description": "Drives the filter chips. Returns the categories grouped under each kind, each with a live product count — so the app never shows a filter that would come back empty.\n\nLabels are translated into the user's language; the `code` and `kind` values stay in English for filtering."
           }
         },
         {

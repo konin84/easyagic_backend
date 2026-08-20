@@ -72,6 +72,15 @@ class Product(models.Model):
         help_text="Attribution required by the photo's licence. Show it wherever the image is displayed.",
     )
     is_active = models.BooleanField(default=True)
+    translations = models.JSONField(
+        default=dict, blank=True,
+        help_text="Cached per-language text, e.g. {'fr': {'name': ..., 'description': ..., 'unit': ...}}.",
+    )
+    translations_source = models.CharField(
+        max_length=64, blank=True,
+        help_text="Fingerprint of the English text the cached translations were made from. "
+                  "When it stops matching, the translations are stale and get redone.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
