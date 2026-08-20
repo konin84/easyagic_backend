@@ -1,0 +1,149 @@
+{
+  "_comment": "Seed catalogue for apps.products. Run: python manage.py seed_products. Images are intentionally blank — fill image_url here, or upload files in Django admin. Re-running never overwrites existing rows unless --overwrite is passed.",
+
+  "products": [
+    { "name": "Hybrid Maize Seed", "kind": "input", "category": "seed", "unit": "1 kg pack",
+      "description": "Improved maize varieties bred for higher yields and better drought tolerance than saved seed. Buy fresh each season — hybrid seed saved from your own harvest loses much of its vigour." },
+
+    { "name": "Improved Cassava Cuttings", "kind": "input", "category": "seed", "unit": "bundle of 50 stems",
+      "description": "Disease-free stem cuttings from certified nurseries, selected for resistance to cassava mosaic virus. Plant within a few days of collection and keep them shaded until then." },
+
+    { "name": "Certified Upland Rice Seed", "kind": "input", "category": "seed", "unit": "5 kg bag",
+      "description": "NERICA-type upland rice seed suited to rainfed fields without standing water. Matures faster than traditional varieties, which helps when the rains end early." },
+
+    { "name": "Cowpea Seed", "kind": "input", "category": "seed", "unit": "2 kg pack",
+      "description": "Certified cowpea for grain and fodder. It fixes nitrogen in the soil, so it is a good crop to rotate into a field that has carried maize for a season or two." },
+
+    { "name": "Heat-Tolerant Tomato Seed", "kind": "input", "category": "seed", "unit": "10 g sachet",
+      "description": "Varieties selected to set fruit in high temperatures, where ordinary tomato flowers drop. Start in a nursery bed and transplant after three to four weeks." },
+
+    { "name": "Groundnut Seed", "kind": "input", "category": "seed", "unit": "5 kg bag",
+      "description": "Shelled groundnut seed graded for planting rather than eating. Shell only just before sowing, as shelled kernels lose their ability to germinate quickly." },
+
+    { "name": "Vegetable Seed Assortment", "kind": "input", "category": "seed", "unit": "mixed pack",
+      "description": "A mixed pack of okra, amaranth, garden egg and pepper seed for a home or market garden. Useful for spreading risk across several quick-maturing crops." },
+
+    { "name": "NPK 15-15-15 Fertiliser", "kind": "input", "category": "fertilizer", "unit": "50 kg bag",
+      "description": "Balanced compound fertiliser supplying nitrogen, phosphorus and potassium in equal share. Usually applied at or shortly after planting as a base dressing." },
+
+    { "name": "Urea (46-0-0)", "kind": "input", "category": "fertilizer", "unit": "50 kg bag",
+      "description": "High-nitrogen fertiliser used as a top dressing once the crop is established and growing. Apply just before rain or irrigation, and cover it, or much of the nitrogen escapes as gas." },
+
+    { "name": "Organic Compost", "kind": "input", "category": "fertilizer", "unit": "25 kg bag",
+      "description": "Decomposed plant and animal matter that feeds the soil rather than just the crop. It improves water retention in sandy soils and eases compaction in clay." },
+
+    { "name": "Poultry Manure Pellets", "kind": "input", "category": "fertilizer", "unit": "25 kg bag",
+      "description": "Composted and pelleted chicken manure, easier to store and spread evenly than raw manure. Rich in nitrogen and phosphorus, and it releases slowly over the season." },
+
+    { "name": "Agricultural Lime", "kind": "input", "category": "fertilizer", "unit": "50 kg bag",
+      "description": "Raises the pH of acidic soils so that crops can take up nutrients already present. Worth applying where a soil analysis reports an acidic result." },
+
+    { "name": "Foliar Micronutrient Spray", "kind": "input", "category": "fertilizer", "unit": "1 litre bottle",
+      "description": "Liquid zinc, boron and magnesium sprayed onto leaves for a fast correction of visible deficiency. A supplement to soil fertiliser, not a replacement for it." },
+
+    { "name": "Neem-Based Bio-Pesticide", "kind": "input", "category": "crop_protection", "unit": "1 litre bottle",
+      "description": "Plant-derived pesticide that deters aphids, whitefly and caterpillars with a short pre-harvest interval. A practical choice for vegetables picked frequently." },
+
+    { "name": "Broad-Spectrum Insecticide", "kind": "input", "category": "crop_protection", "unit": "500 ml bottle",
+      "description": "Controls stem borers, armyworm and pod-sucking insects in cereals and legumes. Follow the label dose and observe the waiting period before harvest." },
+
+    { "name": "Mancozeb Fungicide", "kind": "input", "category": "crop_protection", "unit": "1 kg pack",
+      "description": "Protective fungicide against blight, leaf spot and downy mildew. It works by preventing infection, so spray before disease takes hold rather than after." },
+
+    { "name": "Selective Herbicide", "kind": "input", "category": "crop_protection", "unit": "1 litre bottle",
+      "description": "Kills weeds among a growing cereal crop without harming the crop itself. Check the label carefully: a herbicide safe in maize can destroy beans." },
+
+    { "name": "Hand Hoe", "kind": "input", "category": "tool", "unit": "each",
+      "description": "The everyday tool for weeding, ridging and seedbed preparation. A forged head lasts far longer than a pressed one and is worth the difference in price." },
+
+    { "name": "Cutlass / Machete", "kind": "input", "category": "tool", "unit": "each",
+      "description": "For clearing bush, harvesting cane and plantain, and general field work. Keep the edge sharpened — a blunt blade takes more effort and slips more easily." },
+
+    { "name": "Knapsack Sprayer (16 L)", "kind": "input", "category": "tool", "unit": "each",
+      "description": "Backpack sprayer for applying pesticide, herbicide and foliar feed. Rinse thoroughly between different chemicals, especially after herbicide." },
+
+    { "name": "Drip Irrigation Starter Kit", "kind": "input", "category": "irrigation", "unit": "kit, 500 m²",
+      "description": "Tubing, emitters and fittings that deliver water straight to the root zone. Uses far less water than furrow irrigation and keeps leaves dry, which limits disease." },
+
+    { "name": "Treadle Pump", "kind": "input", "category": "irrigation", "unit": "each",
+      "description": "Foot-operated pump that lifts water from a shallow well or stream with no fuel cost. Suited to plots of roughly half a hectare." },
+
+    { "name": "Spraying Protective Kit", "kind": "input", "category": "protective_equipment", "unit": "set",
+      "description": "Gloves, goggles, respirator mask and coverall for handling agrochemicals. Pesticide absorbed through skin and lungs causes lasting harm — wear the set every time." },
+
+    { "name": "Maize", "kind": "produce", "category": "grain", "unit": "per 100 kg bag",
+      "description": "The staple cereal across much of the continent, eaten fresh, dried or milled into flour. Grows best in loam with steady moisture through tasselling." },
+
+    { "name": "Rice", "kind": "produce", "category": "grain", "unit": "per 100 kg bag",
+      "description": "Grown in lowland paddies or as rainfed upland rice. Demand in urban markets is strong and much is still imported, so locally milled rice sells well." },
+
+    { "name": "Sorghum", "kind": "produce", "category": "grain", "unit": "per 100 kg bag",
+      "description": "A hardy cereal that yields where maize fails, tolerating heat and irregular rain. Used for food, brewing and animal feed." },
+
+    { "name": "Millet", "kind": "produce", "category": "grain", "unit": "per 100 kg bag",
+      "description": "Drought-tolerant small grain well suited to sandy soils and short rainy seasons. Reliable in the drier savannah where other cereals are a gamble." },
+
+    { "name": "Cassava", "kind": "produce", "category": "tuber", "unit": "per tonne",
+      "description": "A root crop that tolerates poor soil and can stay in the ground until needed. Processed into gari, fufu and flour, and it spoils fast once lifted." },
+
+    { "name": "Yam", "kind": "produce", "category": "tuber", "unit": "per 100 tubers",
+      "description": "A high-value tuber, central to both diet and ceremony in West Africa. Needs deep, loose soil and staking, and stores for months in a well-ventilated barn." },
+
+    { "name": "Sweet Potato", "kind": "produce", "category": "tuber", "unit": "per 50 kg bag",
+      "description": "Fast-maturing tuber that produces on sandy soil with modest inputs. Orange-fleshed varieties carry vitamin A and command a premium in some markets." },
+
+    { "name": "Irish Potato", "kind": "produce", "category": "tuber", "unit": "per 50 kg bag",
+      "description": "Grown in cooler highland areas and around the harmattan season. Needs clean seed potatoes, as recycled tubers carry disease that cuts yields sharply." },
+
+    { "name": "Cowpea (Beans)", "kind": "produce", "category": "legume", "unit": "per 100 kg bag",
+      "description": "A protein staple that also fixes nitrogen, leaving the field better than it found it. Store with care — weevils can ruin a bag within weeks." },
+
+    { "name": "Groundnut", "kind": "produce", "category": "legume", "unit": "per 100 kg bag",
+      "description": "Grown for food, oil and paste, and a good rotation crop after cereals. Dry the pods properly: damp storage invites aflatoxin, which buyers reject." },
+
+    { "name": "Soybean", "kind": "produce", "category": "legume", "unit": "per 100 kg bag",
+      "description": "Rising demand from oil mills and poultry feed processors makes this a dependable cash legume. Needs inoculant on soil where it has not been grown before." },
+
+    { "name": "Bambara Nut", "kind": "produce", "category": "legume", "unit": "per 50 kg bag",
+      "description": "An indigenous legume that yields on poor, sandy soil where groundnut struggles. Nutritious, drought-hardy and mostly traded in local markets." },
+
+    { "name": "Tomato", "kind": "produce", "category": "vegetable", "unit": "per crate",
+      "description": "A high-value vegetable with fast turnover and heavy post-harvest losses. Prices swing widely between glut and scarcity, so timing the planting matters." },
+
+    { "name": "Onion", "kind": "produce", "category": "vegetable", "unit": "per 50 kg bag",
+      "description": "Stores far better than most vegetables, letting you hold stock for a stronger price. Cure the bulbs in shade for two weeks before bagging." },
+
+    { "name": "Okra", "kind": "produce", "category": "vegetable", "unit": "per basket",
+      "description": "Quick to mature and picked every couple of days once it starts bearing. Steady household demand and it tolerates heat well." },
+
+    { "name": "Pepper (Chilli)", "kind": "produce", "category": "vegetable", "unit": "per basket",
+      "description": "Sold fresh or dried, with drying offering a way to store the crop and sell later. Susceptible to blight in humid weather." },
+
+    { "name": "Plantain", "kind": "produce", "category": "fruit", "unit": "per bunch",
+      "description": "A perennial that yields year-round once established, giving steady income between seasonal crops. Prefers deep, moist soil rich in organic matter." },
+
+    { "name": "Mango", "kind": "produce", "category": "fruit", "unit": "per crate",
+      "description": "Tree crop with a concentrated harvest window and strong fresh and dried demand. Fruit fly is the main threat to marketable quality." },
+
+    { "name": "Pineapple", "kind": "produce", "category": "fruit", "unit": "per 100 fruits",
+      "description": "Grows well on acidic sandy loam and suits both fresh sale and juice processing. Takes roughly 12 to 18 months from sucker to harvest." },
+
+    { "name": "Cocoa", "kind": "produce", "category": "cash_crop", "unit": "per 64 kg bag",
+      "description": "A leading export earner in West Africa, sold as dried fermented beans. Fermentation and drying decide the grade, and the grade decides the price." },
+
+    { "name": "Cashew", "kind": "produce", "category": "cash_crop", "unit": "per 80 kg bag",
+      "description": "Tolerates poor, dry soil and yields for decades once the trees mature. Raw nuts are exported, while processing locally adds considerable value." },
+
+    { "name": "Oil Palm", "kind": "produce", "category": "cash_crop", "unit": "per tonne of fruit",
+      "description": "Fresh fruit bunches pressed for palm oil and kernel oil, with year-round harvesting. Needs high rainfall and mills the fruit within 48 hours of cutting." },
+
+    { "name": "Sesame", "kind": "produce", "category": "cash_crop", "unit": "per 100 kg bag",
+      "description": "A drought-tolerant oilseed with steady export demand and low input costs. Harvest before the capsules split, or much of the seed is lost to the ground." },
+
+    { "name": "Ginger", "kind": "produce", "category": "cash_crop", "unit": "per 50 kg bag",
+      "description": "High-value rhizome sold fresh or dried, favouring loose, well-drained soil. Rotate the plot, as ginger is prone to soil-borne rot when grown repeatedly." },
+
+    { "name": "Hibiscus (Sorrel)", "kind": "produce", "category": "cash_crop", "unit": "per 50 kg bag",
+      "description": "Dried calyces used for drinks and tea, with growing export interest. Undemanding to grow and dries easily in the sun, which keeps processing costs low." }
+  ]
+}

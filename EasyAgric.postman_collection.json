@@ -918,5 +918,95 @@
         }
       ]
     }
+,
+    {
+      "name": "Products",
+      "description": "Catalogue of agricultural products listed in the app — 48 entries seeded from `apps/products/data/products.json` via `manage.py seed_products`.\n\nTwo kinds share one catalogue: `input` (seeds, fertiliser, crop protection, tools, irrigation, protective gear) and `produce` (grains, tubers, legumes, vegetables, fruits, cash crops). Images ship empty — upload a file in Django admin or set `image_url`.",
+      "item": [
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/products/?kind=input",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "kind",
+                  "value": "input",
+                  "description": "input | produce — omit for the whole catalogue"
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "seed | fertilizer | crop_protection | tool | irrigation | protective_equipment | grain | tuber | legume | vegetable | fruit | cash_crop",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Partial match on name or description",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Page size, default 50, max 200",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Skip this many rows",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Returns {count, limit, offset, results}. Each row: id, slug, name, kind, kind_display, category, category_display, description, unit, image.\n\n`image` is a single resolved field — the uploaded file if there is one, otherwise `image_url`, otherwise null. Only active products are listed."
+          }
+        },
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/products/categories/",
+            "description": "Drives the filter chips. Returns the categories grouped under each kind, each with a live product count — so the app never shows a filter that would come back empty."
+          }
+        },
+        {
+          "name": "Product Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/products/cocoa/",
+            "description": "Single product by slug (slugs are generated from the name, e.g. `cocoa`, `hybrid-maize-seed`, `knapsack-sprayer-16-l`). 404 if the slug is unknown or the product is inactive."
+          }
+        }
+      ]
+    }
   ]
 }

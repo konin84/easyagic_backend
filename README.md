@@ -74,7 +74,24 @@ En production, coller le même JSON dans la variable `PAYMENT_CONFIG_JSON` : la 
 
 Une ligne déjà présente n'est **jamais écrasée** — les tarifs modifiés depuis l'admin Django survivent aux redéploiements. Utiliser `--overwrite` pour forcer les valeurs du JSON.
 
-### 8. Gestion des utilisateurs (`/users/`)
+### 8. Catalogue de produits agricoles (`/products/`)
+
+48 produits amorcés en base, répartis en deux familles :
+
+- **Intrants** (`kind=input`) — semences, engrais, protection des cultures, outils, irrigation, équipement de protection
+- **Productions** (`kind=produce`) — céréales, tubercules, légumineuses, légumes, fruits, cultures de rente
+
+Chaque fiche porte un nom, une catégorie, une **description pratique** de deux phrases, une unité de vente et une image.
+
+- `GET /api/products/` — catalogue paginé (`?kind=`, `?category=`, `?search=`, `?limit=`, `?offset=`)
+- `GET /api/products/categories/` — catégories groupées par famille, avec le nombre de produits (pour les filtres)
+- `GET /api/products/<slug>/` — fiche produit
+
+**Images** : livrées vides. Renseigner `image_url` dans `apps/products/data/products.json`, ou téléverser un fichier depuis l'admin Django (stocké sur Cloudinary en production). Le champ `image` de l'API renvoie le fichier s'il existe, sinon l'URL, sinon `null`.
+
+**Amorçage** : `python manage.py seed_products` — idempotent, exécuté à chaque déploiement, et **n'écrase jamais** une fiche modifiée depuis l'admin (`--overwrite` pour forcer).
+
+### 9. Gestion des utilisateurs (`/users/`)
 
 - Rôles : `farmer`, `admin`, `app_manager`
 - Authentification par OTP (code à 6 chiffres, valable 10 minutes)
