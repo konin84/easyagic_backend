@@ -23,6 +23,12 @@
       "description": "JWT refresh token — populated automatically after Login or Register"
     },
     {
+      "key": "user_id",
+      "value": "",
+      "type": "string",
+      "description": "Target user id for the Admin — User Management requests"
+    },
+    {
       "key": "payment_id",
       "value": "",
       "type": "string",
@@ -770,6 +776,144 @@
               }
             },
             "description": "Admin / app manager only. Moves a farmer onto a paid plan WITHOUT recording a payment — for complimentary accounts, goodwill extensions or fixing a mistake. Normal paid signups should go through the payment endpoints so the money is auditable.\n\nIdentify the farmer by `email` or `user_id`. `months` and `analysis_quota` are optional and default to the plan's configuration."
+          }
+        }
+      ]
+    }
+,
+    {
+      "name": "Admin — User Management",
+      "description": "Platform admins only (role `admin`, or a Django superuser). App managers are deliberately excluded — `is_privileged` is too broad for destructive account operations.\n\nDeleting a user is permanent and cascades to their subscription, payments, analysis history and device tokens. Prefer Deactivate unless the account really must be erased.",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/users/?role=farmer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "users",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "role",
+                  "value": "farmer",
+                  "description": "farmer | admin | appmanager — omit for every account"
+                },
+                {
+                  "key": "is_active",
+                  "value": "true",
+                  "description": "true | false",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Partial match on email or farm name",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "Page size, default 100, max 500",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Skip this many rows",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Find the account to act on — this is where you read the `id` used by Preview, Deactivate and Delete.\n\nReturns {count, limit, offset, results}, newest first. `count` is the total matching your filters, not the size of the page, so you can always tell when more accounts exist.\n\nFilters: `role` (farmer | admin | appmanager), `is_active` (true | false), `search` (matches email OR farm name, partial).\nPaging: `limit` (default 100, max 500), `offset`.\n\nEach row carries id, email, role, phone, farm_name, language, is_active, date_joined, last_login and current `plan` (null for staff, who are not metered)."
+          }
+        },
+        {
+          "name": "Preview Deletion Impact",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/users/{{user_id}}/",
+            "description": "Shows the account plus `deletion_impact` — exactly how many rows would be destroyed with it, per model. Computed from Django's own deletion collector, so it stays accurate as the schema grows.\n\nAlways worth calling before Delete User."
+          }
+        },
+        {
+          "name": "Deactivate User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/users/{{user_id}}/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "The reversible option, and the right one in most cases. The account can no longer log in, but the farmer's history and payment records are preserved. Send `is_active: true` to restore access.\n\nAdmins cannot deactivate themselves."
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/users/{{user_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "users",
+                "{{user_id}}",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "force",
+                  "value": "true",
+                  "description": "Required only to delete an account that has confirmed payments",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "PERMANENT. Removes the account and everything cascading from it — subscription, payments, analysis history, device tokens. The response reports what was destroyed.\n\nGuardrails:\n- 400 if you target your own account. This is what stops the platform being locked out: the caller is an admin and cannot remove themselves, so an admin always survives.\n- 409 if the account has confirmed payments, since deleting it would erase financial records. Deactivate instead, or repeat with ?force=true to go ahead anyway.\n\nPayments this user *recorded or reviewed* as staff are not deleted — those links are set to null, so the farmer's payment history survives."
           }
         }
       ]

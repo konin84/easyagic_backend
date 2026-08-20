@@ -81,6 +81,19 @@ Une ligne déjà présente n'est **jamais écrasée** — les tarifs modifiés d
 - Support de **17 langues africaines** : Swahili, Hausa, Yoruba, Igbo, Amharique, Zulu, Wolof, Lingala, Shona, Dioula, Baoulé, Bambara, Fulani, etc.
 - Les emails de conseil sont traduits automatiquement dans la langue de l'utilisateur via **Google Cloud Translation API**
 
+#### Gestion des comptes par l'administrateur
+
+Réservé aux **admins de la plateforme** (rôle `admin` ou superutilisateur Django) — les app managers en sont volontairement exclus.
+
+- `GET /api/auth/users/` — **liste des comptes avec leurs `id`** (à utiliser pour trouver l'id à supprimer).
+  Filtres : `?role=farmer|admin|appmanager`, `?is_active=true|false`, `?search=` (email ou nom de ferme).
+  Pagination : `?limit=` (défaut 100, max 500), `?offset=`. La réponse renvoie `{count, limit, offset, results}` — `count` est le total correspondant aux filtres, donc on voit toujours s'il reste des comptes au-delà de la page.
+- `GET /api/auth/users/<id>/` — détail + `deletion_impact` : ce que la suppression détruirait, ligne par ligne
+- `PATCH /api/auth/users/<id>/` — désactiver / réactiver (`{"is_active": false}`) — **option réversible, à privilégier**
+- `DELETE /api/auth/users/<id>/` — suppression définitive (abonnement, paiements, historique, tokens)
+
+Garde-fous : un admin ne peut pas supprimer ni désactiver **son propre compte** (ce qui garantit qu'il reste toujours au moins un admin), et la suppression d'un compte ayant des **paiements confirmés** est refusée (409) car elle détruirait des données comptables — utiliser la désactivation, ou `?force=true` en connaissance de cause.
+
 ---
 
 ## Stack technique

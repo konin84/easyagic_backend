@@ -77,3 +77,17 @@ class UserProfileSerializer(serializers.ModelSerializer):
         if user.is_privileged:
             return None
         return SubscriptionSerializer(Subscription.for_user(user)).data
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """User listing for platform admins — includes the fields they act on."""
+
+    plan = serializers.CharField(source="subscription.plan", read_only=True, default=None)
+
+    class Meta:
+        model = User
+        fields = [
+            "id", "email", "role", "phone", "farm_name", "language",
+            "is_active", "date_joined", "last_login", "plan",
+        ]
+        read_only_fields = fields
