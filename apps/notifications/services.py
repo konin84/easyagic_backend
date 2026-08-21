@@ -72,8 +72,9 @@ def _deliver(tokens: list[str], title: str, body: str, data: dict, language: str
     try:
         from firebase_admin import messaging
 
-        # One API call for both strings; falls back to English on failure.
-        title, body = translate_batch([title, body], language)
+        if language != "en":
+            # One API call for both strings; falls back to English on failure.
+            title, body = translate_batch([title, body], language)
 
         message = messaging.MulticastMessage(
             tokens=tokens,

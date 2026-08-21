@@ -101,6 +101,13 @@ class PushDeliveryTests(TestCase):
         self.assertEqual(sent["notification"].title, "Analyse prête")
         self.assertEqual(sent["notification"].body, "Votre analyse Loam est terminée.")
 
+    def test_english_skips_the_translation_call(self):
+        with patch("apps.notifications.services.translate_batch") as translate:
+            sent = self.deliver(["live"], [ok()], language="en")
+
+        translate.assert_not_called()
+        self.assertEqual(sent["notification"].title, "Farm Analysis Ready")
+
     def test_routing_data_is_never_translated(self):
         messaging = fake_messaging([ok()])
         sent = {}

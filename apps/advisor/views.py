@@ -1,6 +1,8 @@
 import concurrent.futures
 import threading
 
+from django.db import connection
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -128,23 +130,27 @@ class AdvisorView(APIView):
 
         # Save record, send email and push notification without blocking the response
         def _save_and_notify():
-            AnalysisRecord.objects.create(
-                farmer=request.user,
-                latitude=latitude,
-                longitude=longitude,
-                soil_analysis=soil_analysis,
-                weather_data=weather_data,
-                crop_recommendations=crop_recommendations,
-            )
-            send_advice_email(request.user, response)
+            try:
+                AnalysisRecord.objects.create(
+                    farmer=request.user,
+                    latitude=latitude,
+                    longitude=longitude,
+                    soil_analysis=soil_analysis,
+                    weather_data=weather_data,
+                    crop_recommendations=crop_recommendations,
+                )
+                send_advice_email(request.user, response)
 
-            soil_type = (soil_analysis or {}).get("soil_type", "your soil")
-            send_push_to_user(
-                request.user,
-                title="Farm Analysis Ready",
-                body=f"Your {soil_type} analysis is complete. Check your recommendations.",
-                data={"type": "analysis_complete"},
-            )
+                soil_type = (soil_analysis or {}).get("soil_type", "your soil")
+                send_push_to_user(
+                    request.user,
+                    title="Farm Analysis Ready",
+                    body=f"Your {soil_type} analysis is complete. Check your recommendations.",
+                    data={"type": "analysis_complete"},
+                )
+            finally:
+                # This runs in its own thread, so Django opened a connection for it.
+                connection.close()
 
         threading.Thread(target=_save_and_notify, daemon=True).start()
 
