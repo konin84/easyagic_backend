@@ -127,9 +127,8 @@ class SubscriptionFlowTests(TestCase):
         with patch("apps.advisor.views.analyze_soil_image", return_value=FAKE_SOIL), \
              patch("apps.advisor.views.get_agricultural_data", return_value={"current_weather": {"temperature_2m": 27}}), \
              patch("apps.advisor.views.AnalysisRecord"), \
-             patch("apps.advisor.views.DeviceToken"), \
              patch("apps.advisor.views.send_advice_email"), \
-             patch("apps.advisor.views.send_push"):
+             patch("apps.advisor.views.send_push_to_user"):
             response = self.client.post(
                 reverse("advisor"),
                 {name: _file(payload), "lat": "5.35", "lon": "-4.02"},

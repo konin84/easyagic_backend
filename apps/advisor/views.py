@@ -10,8 +10,7 @@ from apps.weather.services import get_agricultural_data
 from apps.soil.services import analyze_soil_image, NotSoilImageError
 from apps.crops.services import get_crop_recommendations, translate_crop_recommendations
 from apps.history.models import AnalysisRecord
-from apps.notifications.models import DeviceToken
-from apps.notifications.services import send_push
+from apps.notifications.services import send_push_to_user
 from apps.subscriptions.models import Subscription
 from apps.subscriptions.permissions import HasAnalysisCredit
 from apps.utils.email_translate import translate_email_content
@@ -139,12 +138,9 @@ class AdvisorView(APIView):
             )
             send_advice_email(request.user, response)
 
-            tokens = list(
-                DeviceToken.objects.filter(user=request.user).values_list("token", flat=True)
-            )
             soil_type = (soil_analysis or {}).get("soil_type", "your soil")
-            send_push(
-                tokens,
+            send_push_to_user(
+                request.user,
                 title="Farm Analysis Ready",
                 body=f"Your {soil_type} analysis is complete. Check your recommendations.",
                 data={"type": "analysis_complete"},
